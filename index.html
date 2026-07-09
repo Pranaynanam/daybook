@@ -1,0 +1,1244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Daybook — Team Daily Report</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#F7F5F0;
+    --paper-raised:#FFFFFF;
+    --ink:#1C2321;
+    --ink-soft:#5B625E;
+    --navy:#2C4A52;
+    --navy-dim:#3E6570;
+    --line:#DEDAD1;
+    --line-soft:#EAE7E0;
+    --office:#3D7A5C;
+    --office-bg:#E7F1EB;
+    --wfh:#3E6FA8;
+    --wfh-bg:#E8EFF8;
+    --leave:#B8763E;
+    --leave-bg:#F5EBDF;
+    --danger:#B54545;
+    --radius:10px;
+    --shadow:0 1px 2px rgba(28,35,33,0.06), 0 8px 24px rgba(28,35,33,0.05);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family:'Inter',sans-serif;
+    background:var(--paper);
+    color:var(--ink);
+    -webkit-font-smoothing:antialiased;
+  }
+  ::selection{background:#CFE3D6;}
+  .app{max-width:920px;margin:0 auto;padding:28px 20px 80px;}
+
+  /* Header */
+  .topbar{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:22px;flex-wrap:wrap;}
+  .brand{display:flex;flex-direction:column;gap:2px;}
+  .brand .mark{display:flex;align-items:center;gap:10px;}
+  .brand .mark svg{flex-shrink:0;}
+  .brand h1{font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:700;margin:0;letter-spacing:-0.01em;}
+  .brand .tag{font-size:12.5px;color:var(--ink-soft);margin-left:32px;}
+  .role-switch{display:flex;background:var(--paper-raised);border:1px solid var(--line);border-radius:999px;padding:3px;box-shadow:var(--shadow);}
+  .role-switch button{
+    border:none;background:transparent;padding:7px 16px;border-radius:999px;
+    font-family:'Inter';font-weight:600;font-size:13px;color:var(--ink-soft);cursor:pointer;transition:all .15s ease;
+  }
+  .role-switch button.active{background:var(--navy);color:#fff;}
+
+  /* Card base */
+  .card{background:var(--paper-raised);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);}
+  .section{padding:20px 22px;margin-bottom:16px;}
+  .section h2{font-family:'Space Grotesk';font-size:14px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);margin:0 0 14px;}
+
+  /* Profile row */
+  .profile-row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;}
+  .field{display:flex;flex-direction:column;gap:6px;flex:1;min-width:160px;}
+  .field label{font-size:12px;font-weight:600;color:var(--ink-soft);}
+  .field input, .field select, .field textarea{
+    font-family:'Inter';font-size:14px;padding:9px 11px;border:1px solid var(--line);border-radius:7px;
+    background:var(--paper);color:var(--ink);outline:none;transition:border-color .15s;
+  }
+  .field input:focus, .field select:focus, .field textarea:focus{border-color:var(--navy);background:#fff;}
+  .btn{
+    font-family:'Inter';font-weight:600;font-size:13.5px;padding:9px 18px;border-radius:7px;border:1px solid transparent;
+    cursor:pointer;transition:all .15s ease;
+  }
+  .btn-primary{background:var(--navy);color:#fff;}
+  .btn-primary:hover{background:var(--navy-dim);}
+  .btn-primary:disabled{background:#B7C2C4;cursor:not-allowed;}
+  .btn-ghost{background:transparent;border-color:var(--line);color:var(--ink);}
+  .btn-ghost:hover{border-color:var(--ink-soft);}
+  .btn-text{background:transparent;border:none;color:var(--navy);font-weight:600;font-size:13px;cursor:pointer;padding:4px 6px;}
+  .btn-text:hover{text-decoration:underline;}
+  .btn-danger-text{background:none;border:none;color:var(--danger);cursor:pointer;font-size:16px;padding:2px 6px;line-height:1;}
+
+  /* Date control */
+  .date-row{display:flex;align-items:center;gap:10px;}
+  .date-row input[type=date]{font-family:'JetBrains Mono';font-size:13.5px;padding:8px 10px;border:1px solid var(--line);border-radius:7px;background:var(--paper);}
+
+  /* Status selector */
+  .status-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
+  .status-card{
+    border:1.5px solid var(--line);border-radius:var(--radius);padding:16px 14px;cursor:pointer;text-align:left;
+    background:var(--paper);transition:all .15s ease;position:relative;
+  }
+  .status-card:hover{border-color:var(--ink-soft);}
+  .status-card .icon{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;margin-bottom:10px;}
+  .status-card .name{font-family:'Space Grotesk';font-weight:600;font-size:14.5px;}
+  .status-card .desc{font-size:12px;color:var(--ink-soft);margin-top:3px;}
+  .status-card.office .icon{background:var(--office-bg);color:var(--office);}
+  .status-card.wfh .icon{background:var(--wfh-bg);color:var(--wfh);}
+  .status-card.leave .icon{background:var(--leave-bg);color:var(--leave);}
+  .status-card.selected.office{border-color:var(--office);background:var(--office-bg);}
+  .status-card.selected.wfh{border-color:var(--wfh);background:var(--wfh-bg);}
+  .status-card.selected.leave{border-color:var(--leave);background:var(--leave-bg);}
+  .status-card .check{position:absolute;top:12px;right:12px;width:16px;height:16px;border-radius:50%;border:1.5px solid var(--line);}
+  .status-card.selected .check{background:var(--ink);border-color:var(--ink);}
+  .status-card.selected.office .check{background:var(--office);border-color:var(--office);}
+  .status-card.selected.wfh .check{background:var(--wfh);border-color:var(--wfh);}
+  .status-card.selected.leave .check{background:var(--leave);border-color:var(--leave);}
+
+  /* Ledger (time entries) */
+  .ledger{margin-top:16px;}
+  .ledger-row{display:grid;grid-template-columns:100px 100px 1fr 54px 34px;gap:8px;align-items:center;margin-bottom:8px;}
+  .ledger-row input{font-family:'JetBrains Mono';font-size:13px;}
+  .ledger-row input[type=text]{font-family:'Inter';}
+  .e-hours{font-family:'JetBrains Mono';font-size:12.5px;color:var(--ink-soft);text-align:center;background:var(--paper);border:1px solid var(--line-soft);border-radius:6px;padding:9px 4px;}
+  .e-hours.has-val{color:var(--navy);font-weight:600;border-color:var(--line);}
+  .ledger-total{display:flex;justify-content:flex-end;gap:8px;align-items:baseline;margin-top:4px;padding-top:10px;border-top:1px solid var(--line-soft);font-size:13px;color:var(--ink-soft);}
+  .ledger-total strong{font-family:'JetBrains Mono';font-size:16px;color:var(--navy);}
+  .add-row-btn{
+    display:flex;align-items:center;gap:6px;background:none;border:1.5px dashed var(--line);color:var(--navy);
+    font-weight:600;font-size:13px;padding:9px 14px;border-radius:7px;cursor:pointer;width:100%;justify-content:center;margin-top:4px;
+  }
+  .add-row-btn:hover{border-color:var(--navy);background:var(--wfh-bg);}
+
+  .timeline{margin-top:4px;}
+  .tl-item{display:flex;gap:12px;padding:10px 0;border-bottom:1px solid var(--line-soft);}
+  .tl-item:last-child{border-bottom:none;}
+  .tl-dot-wrap{display:flex;flex-direction:column;align-items:center;padding-top:3px;}
+  .tl-dot{width:8px;height:8px;border-radius:50%;background:var(--navy);}
+  .tl-time{font-family:'JetBrains Mono';font-size:12.5px;color:var(--ink-soft);white-space:nowrap;min-width:98px;}
+  .tl-desc{font-size:13.5px;line-height:1.5;}
+
+  /* Submitted state banner */
+  .banner{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 16px;border-radius:8px;
+    background:var(--office-bg);border:1px solid #BFDCC9;margin-bottom:16px;
+  }
+  .banner.leave-banner{background:var(--leave-bg);border-color:#E3C79E;}
+  .banner .msg{font-size:13.5px;font-weight:600;color:var(--ink);}
+  .banner .sub{font-size:12px;color:var(--ink-soft);font-weight:400;}
+
+  textarea{resize:vertical;min-height:80px;font-family:'Inter';}
+
+  /* Manager view */
+  .stat-bar{display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap;}
+  .stat{flex:1;min-width:120px;background:var(--paper-raised);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;box-shadow:var(--shadow);}
+  .stat .num{font-family:'Space Grotesk';font-size:24px;font-weight:700;}
+  .stat .lbl{font-size:12px;color:var(--ink-soft);margin-top:2px;}
+  .stat.office .num{color:var(--office);}
+  .stat.wfh .num{color:var(--wfh);}
+  .stat.leave .num{color:var(--leave);}
+
+  .filter-row{display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;}
+  .chip{padding:6px 14px;border-radius:999px;border:1px solid var(--line);background:var(--paper-raised);font-size:12.5px;font-weight:600;cursor:pointer;color:var(--ink-soft);}
+  .chip.active{background:var(--ink);color:#fff;border-color:var(--ink);}
+
+  .roster-item{border:1px solid var(--line);border-radius:var(--radius);margin-bottom:10px;overflow:hidden;background:var(--paper-raised);}
+  .roster-head{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;cursor:pointer;gap:10px;}
+  .roster-left{display:flex;align-items:center;gap:12px;}
+  .avatar{width:34px;height:34px;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk';font-weight:600;font-size:13px;flex-shrink:0;}
+  .r-name{font-weight:600;font-size:14px;}
+  .r-meta{font-size:12px;color:var(--ink-soft);margin-top:1px;}
+  .badge{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:4px 9px;border-radius:999px;}
+  .badge.office{background:var(--office-bg);color:var(--office);}
+  .badge.wfh{background:var(--wfh-bg);color:var(--wfh);}
+  .badge.leave{background:var(--leave-bg);color:var(--leave);}
+  .roster-body{padding:0 16px 16px 62px;display:none;border-top:1px solid var(--line-soft);}
+  .roster-body.open{display:block;padding-top:12px;}
+  .empty-state{text-align:center;padding:50px 20px;color:var(--ink-soft);}
+  .empty-state .big{font-family:'Space Grotesk';font-size:16px;color:var(--ink);margin-bottom:6px;}
+
+  .toast{
+    position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);
+    background:var(--ink);color:#fff;padding:11px 20px;border-radius:8px;font-size:13.5px;font-weight:500;
+    opacity:0;pointer-events:none;transition:all .25s ease;z-index:100;box-shadow:var(--shadow);
+  }
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
+
+  .hint{font-size:12px;color:var(--ink-soft);margin-top:8px;}
+  .req{color:var(--danger);}
+
+  /* Timesheet calendar */
+  .ts-toolbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:4px;}
+  .ts-month-nav{display:flex;align-items:center;gap:10px;}
+  .ts-month-nav button{width:30px;height:30px;border-radius:7px;border:1px solid var(--line);background:var(--paper);cursor:pointer;font-size:14px;color:var(--ink);}
+  .ts-month-nav button:hover{border-color:var(--ink-soft);}
+  .ts-month-label{font-family:'Space Grotesk';font-weight:600;font-size:15.5px;min-width:150px;text-align:center;}
+  .legend{display:flex;gap:14px;flex-wrap:wrap;}
+  .legend span{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-soft);}
+  .legend .dot{width:9px;height:9px;border-radius:3px;}
+  .dot.office{background:var(--office);} .dot.wfh{background:var(--wfh);} .dot.leave{background:var(--leave);} .dot.none{background:var(--line);}
+
+  .ts-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:14px;}
+  .ts-dow{font-size:11px;font-weight:700;text-transform:uppercase;color:var(--ink-soft);text-align:center;padding-bottom:4px;letter-spacing:.03em;}
+  .ts-day{
+    aspect-ratio:1/0.85;border-radius:8px;border:1.5px solid var(--line-soft);background:var(--paper);
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;cursor:pointer;position:relative;
+    transition:all .12s ease;padding:4px;
+  }
+  .ts-day.blank{visibility:hidden;cursor:default;}
+  .ts-day .dnum{font-family:'JetBrains Mono';font-size:12.5px;color:var(--ink);}
+  .ts-day .dchip{width:16px;height:4px;border-radius:2px;}
+  .ts-day.office{background:var(--office-bg);border-color:#CFE4D8;}
+  .ts-day.office .dchip{background:var(--office);}
+  .ts-day.wfh{background:var(--wfh-bg);border-color:#CBDCEF;}
+  .ts-day.wfh .dchip{background:var(--wfh);}
+  .ts-day.leave{background:var(--leave-bg);border-color:#E9D3B4;}
+  .ts-day.leave .dchip{background:var(--leave);}
+  .ts-day.future{opacity:.35;cursor:default;}
+  .ts-day.today .dnum{font-weight:700;text-decoration:underline;}
+  .ts-day.selected{outline:2px solid var(--ink);outline-offset:1px;}
+  .ts-day:not(.blank):not(.future):hover{border-color:var(--ink-soft);}
+  .ts-hrs{font-size:9.5px;color:var(--ink-soft);font-family:'JetBrains Mono';}
+
+  .ts-summary{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;}
+  .ts-summary .stat{flex:1;min-width:100px;padding:12px 14px;}
+  .ts-summary .stat .num{font-size:20px;}
+
+  .detail-panel{margin-top:16px;padding-top:16px;border-top:1px solid var(--line);}
+  .detail-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+  .detail-head h3{font-family:'Space Grotesk';font-size:15px;margin:0;}
+
+  select#mgr-employee{min-width:200px;}
+
+  @media(max-width:640px){
+    .status-grid{grid-template-columns:1fr;}
+    .ledger-row{grid-template-columns:1fr 1fr 54px 34px;grid-template-areas:"start end hrs del" "desc desc desc desc";}
+    .ledger-row input[type=time]:nth-child(1){grid-area:start;}
+    .ledger-row input[type=time]:nth-child(2){grid-area:end;}
+    .ledger-row .e-hours{grid-area:hrs;}
+    .ledger-row input[type=text]{grid-area:desc;}
+    .ledger-row button{grid-area:del;}
+  }
+</style>
+</head>
+<body>
+<div class="app" id="app"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================================
+   DATABASE SETUP — paste your Supabase details here.
+   See DEPLOY_GUIDE.md for exactly how to get these two values.
+   The app will show a "Setup needed" banner until both are filled in.
+   ========================================================================= */
+const SUPABASE_URL = 'YOUR_SUPABASE_URL';        // e.g. https://xxxxx.supabase.co
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';  // the long "anon public" key
+
+const SB_READY = SUPABASE_URL.startsWith('https://') && !SUPABASE_ANON_KEY.startsWith('YOUR_');
+
+async function sbFetch(path, options={}){
+  const res = await fetch(SUPABASE_URL + '/rest/v1/' + path, {
+    ...options,
+    headers: {
+      'apikey': SUPABASE_ANON_KEY,
+      'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
+      'Content-Type': 'application/json',
+      ...(options.headers || {})
+    }
+  });
+  if(!res.ok){
+    const text = await res.text().catch(()=> '');
+    throw new Error('Supabase error ' + res.status + ': ' + text);
+  }
+  const text = await res.text();
+  return text ? JSON.parse(text) : null;
+}
+
+function rowToReport(row){
+  return {
+    status: row.status,
+    entries: row.entries || [],
+    leaveType: row.leave_type,
+    leaveReason: row.leave_reason,
+    managerName: row.manager_name || '',
+    submittedAt: row.submitted_at
+  };
+}
+
+/* ---------- Storage helpers ---------- */
+/* Profile (name + manager) lives in this browser only — no login system,
+   so each employee's own device just remembers who they are. */
+async function loadProfile(){
+  try{
+    const raw = localStorage.getItem('daybook_profile');
+    if(raw) state.profile = JSON.parse(raw);
+  }catch(e){}
+  state.loadedProfile = true;
+}
+async function saveProfile(){
+  try{ localStorage.setItem('daybook_profile', JSON.stringify(state.profile)); }
+  catch(e){ console.error('profile save failed', e); }
+}
+
+/* Daily reports live in the shared Supabase database, so every employee
+   and the manager see the same live data from any device. */
+async function loadDayReports(date){
+  if(!SB_READY) return {};
+  try{
+    const rows = await sbFetch(`daily_reports?report_date=eq.${date}&select=*`);
+    const map = {};
+    (rows || []).forEach(r=>{ map[r.employee_name] = rowToReport(r); });
+    return map;
+  }catch(e){ console.error(e); showToast('Could not load reports — check your connection'); return {}; }
+}
+
+async function saveDayReports(date, obj){
+  if(!SB_READY){ showToast('Database not set up yet — see DEPLOY_GUIDE.md'); return; }
+  const rep = obj[state.profile.name];
+  const payload = {
+    employee_name: state.profile.name,
+    manager_name: rep.managerName || null,
+    report_date: date,
+    status: rep.status,
+    entries: rep.status !== 'leave' ? rep.entries : null,
+    leave_type: rep.status === 'leave' ? rep.leaveType : null,
+    leave_reason: rep.status === 'leave' ? rep.leaveReason : null,
+    submitted_at: rep.submittedAt
+  };
+  try{
+    await sbFetch('daily_reports?on_conflict=employee_name,report_date', {
+      method: 'POST',
+      headers: { 'Prefer': 'resolution=merge-duplicates' },
+      body: JSON.stringify(payload)
+    });
+  }catch(e){ console.error(e); showToast('Could not save — check your connection'); }
+}
+
+async function registerMember(name){
+  // No-op — employee names are simply read back from the reports table
+  // (see loadTeamMembers), so there's no separate list to keep in sync.
+}
+
+async function loadTeamMembers(){
+  if(!SB_READY) return [];
+  try{
+    const rows = await sbFetch('daily_reports?select=employee_name');
+    const names = [...new Set((rows || []).map(r=>r.employee_name))];
+    return names.sort((a,b)=>a.localeCompare(b));
+  }catch(e){ console.error(e); return []; }
+}
+
+async function loadMonthReportsAll(yearMonth){
+  if(!SB_READY) return {};
+  const [y,m] = yearMonth.split('-').map(Number);
+  const first = yearMonth + '-01';
+  const last = yearMonth + '-' + String(new Date(y, m, 0).getDate()).padStart(2,'0');
+  try{
+    const rows = await sbFetch(`daily_reports?report_date=gte.${first}&report_date=lte.${last}&select=*`);
+    const map = {};
+    (rows || []).forEach(r=>{
+      if(!map[r.report_date]) map[r.report_date] = {};
+      map[r.report_date][r.employee_name] = rowToReport(r);
+    });
+    return map;
+  }catch(e){ console.error(e); return {}; }
+}
+
+/* ---------- State ---------- */
+const state = {
+  role: 'employee', // employee | manager
+  date: todayISO(),
+  profile: { name: '', managerName: '' },
+  loadedProfile: false,
+  draft: { status: 'office', entries: [], leaveType: 'Full day', leaveReason: '' },
+  todaysReport: null, // existing submitted report for date+name
+  editing: false,
+  dayReports: {}, // for manager roster view
+  managerFilter: 'all',
+  openRoster: null,
+
+  // Timesheet
+  tsMonth: currentMonthKey(),
+  tsSelected: null,
+
+  // Manager timesheet
+  mgrMode: 'roster', // roster | timesheet
+  mgrMonth: currentMonthKey(),
+  mgrEmployee: '',
+  teamMembers: [],
+};
+
+function currentMonthKey(){
+  const d = new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+}
+
+function todayISO(){
+  const d = new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function uid(){ return Math.random().toString(36).slice(2,9); }
+function esc(s){ return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function fmtDate(iso){
+  const d = new Date(iso+'T00:00:00');
+  return d.toLocaleDateString('en-US',{weekday:'short',month:'short',day:'numeric'});
+}
+function initials(name){
+  return (name||'?').trim().split(/\s+/).map(w=>w[0]).slice(0,2).join('').toUpperCase();
+}
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  clearTimeout(showToast._tm);
+  showToast._tm = setTimeout(()=>t.classList.remove('show'), 2600);
+}
+
+function timeToHours(t){
+  if(!t || !t.includes(':')) return null;
+  const [h,m] = t.split(':').map(Number);
+  return h + (m||0)/60;
+}
+function entryHours(e){
+  const s = timeToHours(e.start), en = timeToHours(e.end);
+  if(s===null || en===null || en<=s) return 0;
+  return en - s;
+}
+function reportHours(report){
+  if(!report || report.status==='leave') return 0;
+  return (report.entries||[]).reduce((sum,e)=>sum+entryHours(e), 0);
+}
+function fmtHours(h){
+  return (Math.round(h*10)/10).toString();
+}
+
+function monthLabel(yearMonth){
+  const [y,m] = yearMonth.split('-').map(Number);
+  return new Date(y, m-1, 1).toLocaleDateString('en-US',{month:'long', year:'numeric'});
+}
+function shiftMonth(yearMonth, delta){
+  const [y,m] = yearMonth.split('-').map(Number);
+  const d = new Date(y, m-1+delta, 1);
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0');
+}
+function daysInMonth(yearMonth){
+  const [y,m] = yearMonth.split('-').map(Number);
+  return new Date(y, m, 0).getDate();
+}
+function isoOf(yearMonth, day){
+  return yearMonth+'-'+String(day).padStart(2,'0');
+}
+
+// Builds the calendar grid HTML for a given month, coloring days by the
+// given employee's report status. `monthData` = {date: {name: report}}
+function calendarGrid(yearMonth, employeeName, monthData, selectedDate){
+  const [y,m] = yearMonth.split('-').map(Number);
+  const firstDow = new Date(y, m-1, 1).getDay(); // 0=Sun
+  const total = daysInMonth(yearMonth);
+  const today = todayISO();
+  const dows = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+
+  let cells = dows.map(d=>`<div class="ts-dow">${d}</div>`).join('');
+  for(let i=0;i<firstDow;i++) cells += `<div class="ts-day blank"></div>`;
+
+  for(let day=1; day<=total; day++){
+    const iso = isoOf(yearMonth, day);
+    const rep = (monthData[iso] || {})[employeeName];
+    const future = iso > today;
+    const status = rep ? rep.status : 'none';
+    const classes = ['ts-day', status!=='none'?status:'', future?'future':'', iso===today?'today':'', iso===selectedDate?'selected':''].filter(Boolean).join(' ');
+    const hrs = rep && rep.status!=='leave' ? reportHours(rep) : 0;
+    cells += `
+      <div class="${classes}" data-iso="${future?'':iso}">
+        <div class="dnum">${day}</div>
+        ${status!=='none' ? `<div class="dchip"></div>` : ''}
+        ${hrs>0 ? `<div class="ts-hrs">${fmtHours(hrs)}h</div>` : ''}
+      </div>`;
+  }
+  return `<div class="ts-grid">${cells}</div>`;
+}
+
+function monthSummary(employeeName, monthData){
+  let office=0, wfh=0, leave=0, hours=0;
+  Object.values(monthData).forEach(dayObj=>{
+    const rep = dayObj[employeeName];
+    if(!rep) return;
+    if(rep.status==='office') office++;
+    else if(rep.status==='wfh') wfh++;
+    else if(rep.status==='leave') leave++;
+    hours += reportHours(rep);
+  });
+  return {office, wfh, leave, hours, total: office+wfh+leave};
+}
+
+function dayDetailHTML(iso, report){
+  if(!report){
+    return `<div class="hint" style="margin-top:0;">No report submitted for ${fmtDate(iso)}.</div>`;
+  }
+  if(report.status==='leave'){
+    return `
+      <span class="badge leave">${esc(report.leaveType||'Leave')}</span>
+      <p style="font-size:13.5px;line-height:1.6;margin-top:10px;">${esc(report.leaveReason||'')}</p>`;
+  }
+  return `
+    <span class="badge ${report.status}">${statusLabel(report.status)}</span>
+    <div class="timeline" style="margin-top:10px;">
+      ${(report.entries||[]).map(e=>`
+        <div class="tl-item">
+          <div class="tl-time">${esc(e.start)}–${esc(e.end)}</div>
+          <div class="tl-desc">${esc(e.description)}</div>
+        </div>`).join('') || '<div class="hint">No entries logged.</div>'}
+    </div>`;
+}
+
+function downloadCSV(filename, rows){
+  const csv = rows.map(r=>r.map(cell=>{
+    const s = String(cell==null?'':cell);
+    return /[",\n]/.test(s) ? '"'+s.replace(/"/g,'""')+'"' : s;
+  }).join(',')).join('\n');
+  const blob = new Blob([csv], {type:'text/csv;charset=utf-8;'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+function exportEmployeeMonthCSV(employeeName, yearMonth, monthData){
+  const total = daysInMonth(yearMonth);
+  const rows = [['Date','Day','Status','Hours','Details']];
+  for(let day=1; day<=total; day++){
+    const iso = isoOf(yearMonth, day);
+    const rep = (monthData[iso] || {})[employeeName];
+    const dow = new Date(iso+'T00:00:00').toLocaleDateString('en-US',{weekday:'short'});
+    if(!rep){ rows.push([iso, dow, '', '', '']); continue; }
+    if(rep.status==='leave'){
+      rows.push([iso, dow, statusLabel(rep.status), '', (rep.leaveType||'')+' — '+(rep.leaveReason||'')]);
+    } else {
+      const details = (rep.entries||[]).map(e=>`${e.start}-${e.end} ${e.description}`).join(' | ');
+      rows.push([iso, dow, statusLabel(rep.status), fmtHours(reportHours(rep)), details]);
+    }
+  }
+  const s = monthSummary(employeeName, monthData);
+  rows.push([]);
+  rows.push(['Summary','','','','']);
+  rows.push(['In-Office days', s.office]);
+  rows.push(['WFH days', s.wfh]);
+  rows.push(['Leave days', s.leave]);
+  rows.push(['Total hours logged', fmtHours(s.hours)]);
+  downloadCSV(`${employeeName.replace(/\s+/g,'_')}_timesheet_${yearMonth}.csv`, rows);
+}
+
+function exportTeamMonthCSV(yearMonth, monthData, members){
+  const rows = [['Employee','In-Office days','WFH days','Leave days','Total hours']];
+  members.forEach(name=>{
+    const s = monthSummary(name, monthData);
+    if(s.total>0) rows.push([name, s.office, s.wfh, s.leave, fmtHours(s.hours)]);
+  });
+  downloadCSV(`team_timesheet_${yearMonth}.csv`, rows);
+}
+
+/* ---------- Render root ---------- */
+async function render(){
+  const app = document.getElementById('app');
+  let body;
+  if(state.role==='employee') body = await employeeView();
+  else if(state.role==='timesheet') body = await timesheetView();
+  else body = await managerRoot();
+  app.innerHTML = header() + body;
+  bindEvents();
+}
+
+function setupBanner(){
+  if(SB_READY) return '';
+  return `
+  <div class="card section" style="background:#FCEFE3;border-color:#EAC190;padding:14px 20px;margin-bottom:16px;">
+    <div style="font-weight:700;font-size:13.5px;margin-bottom:3px;">⚠️ Database not connected yet</div>
+    <div style="font-size:12.5px;color:var(--ink-soft);line-height:1.5;">
+      Reports won't save until this is set up. Open this file, find <code>SUPABASE_URL</code> and
+      <code>SUPABASE_ANON_KEY</code> near the top of the code, and paste in your project's values —
+      see DEPLOY_GUIDE.md for the exact steps.
+    </div>
+  </div>`;
+}
+
+function header(){
+  return `
+  ${setupBanner()}
+  <div class="topbar">
+    <div class="brand">
+      <div class="mark">
+        <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
+          <rect x="2" y="3" width="22" height="20" rx="3" stroke="#2C4A52" stroke-width="1.6"/>
+          <path d="M2 9H24" stroke="#2C4A52" stroke-width="1.6"/>
+          <circle cx="8" cy="6" r="0.9" fill="#2C4A52"/>
+          <circle cx="18" cy="6" r="0.9" fill="#2C4A52"/>
+          <path d="M6.5 14H11.5M6.5 18H15" stroke="#3D7A5C" stroke-width="1.4" stroke-linecap="round"/>
+        </svg>
+        <h1>Daybook</h1>
+      </div>
+      <div class="tag">Daily status &amp; work log for the team</div>
+    </div>
+    <div class="role-switch">
+      <button data-role="employee" class="${state.role==='employee'?'active':''}">Daily Entry</button>
+      <button data-role="timesheet" class="${state.role==='timesheet'?'active':''}">My Timesheet</button>
+      <button data-role="manager" class="${state.role==='manager'?'active':''}">Manager</button>
+    </div>
+  </div>`;
+}
+
+/* ---------- Employee view ---------- */
+async function employeeView(){
+  if(!state.loadedProfile) await loadProfile();
+
+  if(!state.profile.name){
+    return profileSetupCard();
+  }
+
+  // load today's report for this person if not editing fresh
+  const reports = await loadDayReports(state.date);
+  const mine = reports[state.profile.name] || null;
+  state.todaysReport = mine;
+
+  if(mine && !state.editing){
+    return submittedCard(mine, reports);
+  }
+
+  return formCard(mine);
+}
+
+function profileSetupCard(){
+  return `
+  <div class="card section">
+    <h2>Set up your profile</h2>
+    <div class="profile-row">
+      <div class="field">
+        <label>Your name <span class="req">*</span></label>
+        <input type="text" id="pf-name" placeholder="e.g. Aisha Khan">
+      </div>
+      <div class="field">
+        <label>Reporting manager</label>
+        <input type="text" id="pf-manager" placeholder="e.g. Rahul Verma">
+      </div>
+      <button class="btn btn-primary" id="pf-save">Continue</button>
+    </div>
+    <div class="hint">Saved on this device so you don't have to re-enter it next time.</div>
+  </div>`;
+}
+
+function submittedCard(report, reports){
+  const isLeave = report.status === 'leave';
+  const badgeClass = report.status;
+  const label = statusLabel(report.status);
+  return `
+  <div class="banner ${isLeave?'leave-banner':''}">
+    <div>
+      <div class="msg">Submitted to ${esc(state.profile.managerName || 'your manager')} — marked ${label} for ${fmtDate(state.date)}</div>
+      <div class="sub">Sent at ${new Date(report.submittedAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</div>
+    </div>
+    <button class="btn btn-ghost" id="edit-report">Edit</button>
+  </div>
+  ${dateBar()}
+  <div class="card section">
+    <h2>Your report — ${fmtDate(state.date)}</h2>
+    <span class="badge ${badgeClass}" style="margin-bottom:14px;display:inline-block;">${label}</span>
+    ${!isLeave ? `<span style="font-family:'JetBrains Mono';font-size:13px;color:var(--ink-soft);margin-left:10px;">${fmtHours(reportHours(report))}h logged</span>` : ''}
+    ${isLeave ? `
+      <div style="margin-top:10px;">
+        <div class="hint" style="margin-top:0;font-weight:600;color:var(--ink);">${esc(report.leaveType)}</div>
+        <p style="font-size:13.5px;line-height:1.6;margin-top:6px;">${esc(report.leaveReason)}</p>
+      </div>
+    ` : `
+      <div class="timeline">
+        ${(report.entries||[]).map(e=>`
+          <div class="tl-item">
+            <div class="tl-time">${esc(e.start)}–${esc(e.end)}</div>
+            <div class="tl-desc">${esc(e.description)}</div>
+          </div>
+        `).join('') || '<div class="hint">No entries logged.</div>'}
+      </div>
+    `}
+  </div>`;
+}
+
+function dateBar(){
+  return `
+  <div class="card section" style="padding:14px 22px;">
+    <div class="date-row">
+      <label style="font-size:12px;font-weight:600;color:var(--ink-soft);">Date</label>
+      <input type="date" id="date-picker" value="${state.date}" max="${todayISO()}">
+      <span style="font-size:12.5px;color:var(--ink-soft);margin-left:4px;">${fmtDate(state.date)}</span>
+    </div>
+  </div>`;
+}
+
+function formCard(existing){
+  const d = state.draft;
+  return `
+  <div class="card section" style="padding:14px 22px;">
+    <div class="profile-row" style="align-items:center;">
+      <div class="field" style="max-width:220px;">
+        <label>Reporting to</label>
+        <input type="text" id="pf-manager-inline" value="${esc(state.profile.managerName)}" placeholder="Manager name">
+      </div>
+      <div class="date-row" style="flex:1;">
+        <label style="font-size:12px;font-weight:600;color:var(--ink-soft);">Date</label>
+        <input type="date" id="date-picker" value="${state.date}" max="${todayISO()}">
+      </div>
+      <button class="btn-text" id="who-am-i">Not ${esc(state.profile.name)}?</button>
+    </div>
+  </div>
+
+  <div class="card section">
+    <h2>Today's status</h2>
+    <div class="status-grid">
+      ${statusCard('office','In-Office','Working from the office')}
+      ${statusCard('wfh','WFH','Working remotely today')}
+      ${statusCard('leave','Leave','Taking the day / part-day off')}
+    </div>
+  </div>
+
+  ${d.status !== 'leave' ? workLogCard() : leaveCard()}
+
+  <div class="card section" style="display:flex;justify-content:flex-end;gap:10px;">
+    ${existing ? `<button class="btn btn-ghost" id="cancel-edit">Cancel</button>` : ''}
+    <button class="btn btn-primary" id="submit-report">${existing ? 'Save changes' : 'Submit to manager'}</button>
+  </div>`;
+}
+
+function statusCard(key,name,desc){
+  const selected = state.draft.status===key ? 'selected' : '';
+  const icons = {
+    office: `<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="6" width="12" height="8" rx="1" stroke="currentColor" stroke-width="1.4"/><path d="M5 6V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3" stroke="currentColor" stroke-width="1.4"/></svg>`,
+    wfh: `<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 8L8 2l6 6" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/><path d="M3.5 7v6a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V7" stroke="currentColor" stroke-width="1.4"/></svg>`,
+    leave: `<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="2" y="3" width="12" height="11" rx="1.5" stroke="currentColor" stroke-width="1.4"/><path d="M2 6.5H14" stroke="currentColor" stroke-width="1.4"/><path d="M5 1.5V4M11 1.5V4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>`
+  };
+  return `
+  <button type="button" class="status-card ${key} ${selected}" data-status="${key}">
+    <div class="check"></div>
+    <div class="icon">${icons[key]}</div>
+    <div class="name">${name}</div>
+    <div class="desc">${desc}</div>
+  </button>`;
+}
+
+function workLogCard(){
+  const entries = state.draft.entries;
+  const total = entries.reduce((sum,e)=>sum+entryHours(e), 0);
+  return `
+  <div class="card section">
+    <h2>Work log</h2>
+    <div class="ledger" id="ledger">
+      ${entries.length ? entries.map(e=>ledgerRow(e)).join('') : ''}
+    </div>
+    <button type="button" class="add-row-btn" id="add-entry">+ Add time entry</button>
+    <div class="ledger-total">Total logged today<strong id="today-total-hrs">${fmtHours(total)}h</strong></div>
+    <div class="hint">Log what you worked on and when — e.g. 09:00–10:30, "Fixed login bug on auth service". Start, end and description are all required so your hours show up correctly on the timesheet.</div>
+  </div>`;
+}
+
+function ledgerRow(e){
+  const hrs = entryHours(e);
+  return `
+  <div class="ledger-row" data-id="${e.id}">
+    <input type="time" class="e-start" value="${e.start||''}">
+    <input type="time" class="e-end" value="${e.end||''}">
+    <input type="text" class="e-desc" placeholder="What did you work on?" value="${esc(e.description||'')}">
+    <div class="e-hours ${hrs>0?'has-val':''}">${hrs>0 ? fmtHours(hrs)+'h' : '—'}</div>
+    <button type="button" class="btn-danger-text remove-entry" title="Remove">✕</button>
+  </div>`;
+}
+
+function leaveCard(){
+  const d = state.draft;
+  return `
+  <div class="card section">
+    <h2>Leave details</h2>
+    <div class="field" style="margin-bottom:12px;max-width:220px;">
+      <label>Leave type</label>
+      <select id="leave-type">
+        ${['Full day','Half day — morning','Half day — afternoon','Sick leave','Casual leave'].map(t=>`<option ${d.leaveType===t?'selected':''}>${t}</option>`).join('')}
+      </select>
+    </div>
+    <div class="field">
+      <label>Reason for leave <span class="req">*</span></label>
+      <textarea id="leave-reason" placeholder="Briefly describe the reason for your leave...">${esc(d.leaveReason)}</textarea>
+    </div>
+  </div>`;
+}
+
+function statusLabel(s){
+  return s==='office' ? 'In-Office' : s==='wfh' ? 'WFH' : 'Leave';
+}
+
+/* ---------- Timesheet view (employee's own month) ---------- */
+async function timesheetView(){
+  if(!state.loadedProfile) await loadProfile();
+  if(!state.profile.name){
+    return profileSetupCard();
+  }
+  const monthData = await loadMonthReportsAll(state.tsMonth);
+  const s = monthSummary(state.profile.name, monthData);
+  const selectedReport = state.tsSelected ? (monthData[state.tsSelected]||{})[state.profile.name] : null;
+
+  return `
+  <div class="card section">
+    <div class="ts-toolbar">
+      <div class="ts-month-nav">
+        <button id="ts-prev">‹</button>
+        <div class="ts-month-label">${monthLabel(state.tsMonth)}</div>
+        <button id="ts-next" ${state.tsMonth>=currentMonthKey()?'disabled style="opacity:.3;cursor:default;"':''}>›</button>
+      </div>
+      <div class="legend">
+        <span><span class="dot office"></span>In-Office</span>
+        <span><span class="dot wfh"></span>WFH</span>
+        <span><span class="dot leave"></span>Leave</span>
+        <span><span class="dot none"></span>No report</span>
+      </div>
+    </div>
+    ${calendarGrid(state.tsMonth, state.profile.name, monthData, state.tsSelected)}
+
+    <div class="ts-summary">
+      <div class="stat office"><div class="num">${s.office}</div><div class="lbl">In-Office days</div></div>
+      <div class="stat wfh"><div class="num">${s.wfh}</div><div class="lbl">WFH days</div></div>
+      <div class="stat leave"><div class="num">${s.leave}</div><div class="lbl">Leave days</div></div>
+      <div class="stat"><div class="num">${fmtHours(s.hours)}h</div><div class="lbl">Hours logged</div></div>
+    </div>
+
+    ${state.tsSelected ? `
+      <div class="detail-panel">
+        <div class="detail-head">
+          <h3>${fmtDate(state.tsSelected)}</h3>
+          ${selectedReport ? `<button class="btn-text" id="ts-edit-day">Edit this day</button>` : `<button class="btn-text" id="ts-edit-day">Fill in this day</button>`}
+        </div>
+        ${dayDetailHTML(state.tsSelected, selectedReport)}
+      </div>
+    ` : `<div class="hint">Click a day to see what was logged.</div>`}
+  </div>
+
+  <div class="card section" style="display:flex;justify-content:flex-end;">
+    <button class="btn btn-ghost" id="export-my-csv">Download this month (CSV)</button>
+  </div>`;
+}
+
+/* ---------- Manager view ---------- */
+async function managerRoot(){
+  return `
+  <div class="filter-row">
+    <button class="chip ${state.mgrMode==='roster'?'active':''}" data-mgrmode="roster">Today's Roster</button>
+    <button class="chip ${state.mgrMode==='timesheet'?'active':''}" data-mgrmode="timesheet">Employee Timesheet</button>
+  </div>
+  ${state.mgrMode==='roster' ? await managerRosterView() : await managerTimesheetView()}`;
+}
+
+async function managerTimesheetView(){
+  state.teamMembers = await loadTeamMembers();
+  if(state.teamMembers.length && !state.mgrEmployee){
+    state.mgrEmployee = state.teamMembers[0];
+  }
+  const monthData = await loadMonthReportsAll(state.mgrMonth);
+
+  if(!state.teamMembers.length){
+    return `<div class="card section"><div class="empty-state"><div class="big">No team members yet</div><div>Once employees submit a daily report, they'll appear here.</div></div></div>`;
+  }
+
+  const s = state.mgrEmployee ? monthSummary(state.mgrEmployee, monthData) : {office:0,wfh:0,leave:0,hours:0};
+  const selectedReport = (state.tsSelected && state.mgrEmployee) ? (monthData[state.tsSelected]||{})[state.mgrEmployee] : null;
+
+  return `
+  <div class="card section">
+    <div class="profile-row" style="margin-bottom:4px;">
+      <div class="field" style="max-width:240px;">
+        <label>Employee</label>
+        <select id="mgr-employee">
+          ${state.teamMembers.map(n=>`<option ${n===state.mgrEmployee?'selected':''}>${esc(n)}</option>`).join('')}
+        </select>
+      </div>
+      <button class="btn btn-ghost" id="export-team-csv" style="margin-left:auto;">Export whole team (CSV)</button>
+    </div>
+    <div class="ts-toolbar" style="margin-top:14px;">
+      <div class="ts-month-nav">
+        <button id="mgr-ts-prev">‹</button>
+        <div class="ts-month-label">${monthLabel(state.mgrMonth)}</div>
+        <button id="mgr-ts-next" ${state.mgrMonth>=currentMonthKey()?'disabled style="opacity:.3;cursor:default;"':''}>›</button>
+      </div>
+      <div class="legend">
+        <span><span class="dot office"></span>In-Office</span>
+        <span><span class="dot wfh"></span>WFH</span>
+        <span><span class="dot leave"></span>Leave</span>
+        <span><span class="dot none"></span>No report</span>
+      </div>
+    </div>
+    ${calendarGrid(state.mgrMonth, state.mgrEmployee, monthData, state.tsSelected)}
+
+    <div class="ts-summary">
+      <div class="stat office"><div class="num">${s.office}</div><div class="lbl">In-Office days</div></div>
+      <div class="stat wfh"><div class="num">${s.wfh}</div><div class="lbl">WFH days</div></div>
+      <div class="stat leave"><div class="num">${s.leave}</div><div class="lbl">Leave days</div></div>
+      <div class="stat"><div class="num">${fmtHours(s.hours)}h</div><div class="lbl">Hours logged</div></div>
+    </div>
+
+    ${state.tsSelected ? `
+      <div class="detail-panel">
+        <div class="detail-head"><h3>${fmtDate(state.tsSelected)}</h3></div>
+        ${dayDetailHTML(state.tsSelected, selectedReport)}
+      </div>
+    ` : `<div class="hint">Click a day to see that employee's log.</div>`}
+
+    <div style="display:flex;justify-content:flex-end;margin-top:16px;">
+      <button class="btn btn-ghost" id="export-emp-csv">Download ${esc(state.mgrEmployee||'employee')}'s month (CSV)</button>
+    </div>
+  </div>`;
+}
+
+async function managerRosterView(){
+  const reports = await loadDayReports(state.date);
+  state.dayReports = reports;
+  const names = Object.keys(reports);
+  const counts = {office:0,wfh:0,leave:0};
+  names.forEach(n=>{ if(reports[n] && counts[reports[n].status] !== undefined) counts[reports[n].status]++; });
+
+  const filtered = names.filter(n=>{
+    if(state.managerFilter==='all') return true;
+    return reports[n].status === state.managerFilter;
+  }).sort((a,b)=>a.localeCompare(b));
+
+  return `
+  ${dateBar()}
+  <div class="stat-bar">
+    <div class="stat office"><div class="num">${counts.office}</div><div class="lbl">In-Office</div></div>
+    <div class="stat wfh"><div class="num">${counts.wfh}</div><div class="lbl">WFH</div></div>
+    <div class="stat leave"><div class="num">${counts.leave}</div><div class="lbl">On Leave</div></div>
+    <div class="stat"><div class="num">${names.length}</div><div class="lbl">Reports in</div></div>
+  </div>
+
+  <div class="filter-row">
+    ${['all','office','wfh','leave'].map(f=>`
+      <button class="chip ${state.managerFilter===f?'active':''}" data-filter="${f}">
+        ${f==='all'?'All':statusLabel(f)}
+      </button>
+    `).join('')}
+  </div>
+
+  <div class="card section">
+    <h2>Team roster — ${fmtDate(state.date)}</h2>
+    ${filtered.length ? filtered.map(n=>rosterItem(n, reports[n])).join('') : `
+      <div class="empty-state">
+        <div class="big">No reports yet for this date</div>
+        <div>Once the team submits, their status will show up here.</div>
+      </div>`}
+  </div>`;
+}
+
+function rosterItem(name, report){
+  const open = state.openRoster===name ? 'open' : '';
+  const isLeave = report.status==='leave';
+  return `
+  <div class="roster-item">
+    <div class="roster-head" data-name="${esc(name)}">
+      <div class="roster-left">
+        <div class="avatar">${initials(name)}</div>
+        <div>
+          <div class="r-name">${esc(name)}</div>
+          <div class="r-meta">${isLeave ? esc(report.leaveType) : (report.entries||[]).length + ' entries · ' + fmtHours(reportHours(report)) + 'h'} · ${new Date(report.submittedAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</div>
+        </div>
+      </div>
+      <span class="badge ${report.status}">${statusLabel(report.status)}</span>
+    </div>
+    <div class="roster-body ${open}">
+      ${isLeave ? `<p style="font-size:13.5px;line-height:1.6;">${esc(report.leaveReason)}</p>` : `
+        <div class="timeline">
+          ${(report.entries||[]).map(e=>`
+            <div class="tl-item">
+              <div class="tl-time">${esc(e.start)}–${esc(e.end)}</div>
+              <div class="tl-desc">${esc(e.description)}</div>
+            </div>`).join('') || '<div class="hint">No entries logged.</div>'}
+        </div>`}
+    </div>
+  </div>`;
+}
+
+/* ---------- Events ---------- */
+function bindEvents(){
+  document.querySelectorAll('[data-role]').forEach(b=>{
+    b.onclick = ()=>{ state.role = b.dataset.role; render(); };
+  });
+
+  const pfSave = document.getElementById('pf-save');
+  if(pfSave){
+    pfSave.onclick = async ()=>{
+      const name = document.getElementById('pf-name').value.trim();
+      const mgr = document.getElementById('pf-manager').value.trim();
+      if(!name){ showToast('Please enter your name'); return; }
+      state.profile = { name, managerName: mgr };
+      await saveProfile();
+      await registerMember(name);
+      render();
+    };
+  }
+
+  const whoAmI = document.getElementById('who-am-i');
+  if(whoAmI){
+    whoAmI.onclick = async ()=>{
+      state.profile = { name:'', managerName:'' };
+      state.editing = false;
+      state.draft = { status:'office', entries:[], leaveType:'Full day', leaveReason:'' };
+      await saveProfile();
+      render();
+    };
+  }
+
+  const mgrInline = document.getElementById('pf-manager-inline');
+  if(mgrInline){
+    mgrInline.onblur = async ()=>{
+      state.profile.managerName = mgrInline.value.trim();
+      await saveProfile();
+    };
+  }
+
+  const datePicker = document.getElementById('date-picker');
+  if(datePicker){
+    datePicker.onchange = ()=>{
+      state.date = datePicker.value;
+      state.editing = false;
+      state.draft = { status:'office', entries:[], leaveType:'Full day', leaveReason:'' };
+      render();
+    };
+  }
+
+  document.querySelectorAll('.status-card').forEach(c=>{
+    c.onclick = ()=>{
+      state.draft.status = c.dataset.status;
+      if(state.draft.status!=='leave' && state.draft.entries.length===0){
+        state.draft.entries.push({id:uid(), start:'', end:'', description:''});
+      }
+      render();
+    };
+  });
+
+  const addEntry = document.getElementById('add-entry');
+  if(addEntry){
+    addEntry.onclick = ()=>{
+      syncEntriesFromDOM();
+      state.draft.entries.push({id:uid(), start:'', end:'', description:''});
+      render();
+    };
+  }
+
+  document.querySelectorAll('.remove-entry').forEach(btn=>{
+    btn.onclick = ()=>{
+      syncEntriesFromDOM();
+      const row = btn.closest('.ledger-row');
+      const id = row.dataset.id;
+      state.draft.entries = state.draft.entries.filter(e=>e.id!==id);
+      render();
+    };
+  });
+
+  // Live hours: recalculate per-row and the running total as the person
+  // types, without a full re-render (which would drop input focus).
+  document.querySelectorAll('.ledger-row').forEach(row=>{
+    const startEl = row.querySelector('.e-start');
+    const endEl = row.querySelector('.e-end');
+    if(!startEl || !endEl) return;
+    const recalc = ()=>{
+      const hrs = entryHours({start:startEl.value, end:endEl.value});
+      const hrsEl = row.querySelector('.e-hours');
+      hrsEl.textContent = hrs>0 ? fmtHours(hrs)+'h' : '—';
+      hrsEl.classList.toggle('has-val', hrs>0);
+      updateTodayTotal();
+    };
+    startEl.oninput = recalc;
+    endEl.oninput = recalc;
+  });
+
+  const leaveType = document.getElementById('leave-type');
+  if(leaveType) leaveType.onchange = ()=>{ state.draft.leaveType = leaveType.value; };
+  const leaveReason = document.getElementById('leave-reason');
+  if(leaveReason) leaveReason.oninput = ()=>{ state.draft.leaveReason = leaveReason.value; };
+
+  const submitBtn = document.getElementById('submit-report');
+  if(submitBtn) submitBtn.onclick = submitReport;
+
+  const editBtn = document.getElementById('edit-report');
+  if(editBtn){
+    editBtn.onclick = ()=>{
+      const r = state.todaysReport;
+      state.draft = {
+        status: r.status,
+        entries: (r.entries || [{id:uid(),start:'',end:'',description:''}]).map(e=>({...e, id:e.id||uid()})),
+        leaveType: r.leaveType || 'Full day',
+        leaveReason: r.leaveReason || ''
+      };
+      state.editing = true;
+      render();
+    };
+  }
+
+  const cancelEdit = document.getElementById('cancel-edit');
+  if(cancelEdit){
+    cancelEdit.onclick = ()=>{ state.editing = false; render(); };
+  }
+
+  document.querySelectorAll('.chip[data-filter]').forEach(c=>{
+    c.onclick = ()=>{ state.managerFilter = c.dataset.filter; render(); };
+  });
+
+  document.querySelectorAll('.chip[data-mgrmode]').forEach(c=>{
+    c.onclick = ()=>{ state.mgrMode = c.dataset.mgrmode; state.tsSelected = null; render(); };
+  });
+
+  document.querySelectorAll('.roster-head').forEach(h=>{
+    h.onclick = ()=>{
+      const name = h.dataset.name;
+      state.openRoster = state.openRoster===name ? null : name;
+      render();
+    };
+  });
+
+  /* --- My Timesheet --- */
+  const tsPrev = document.getElementById('ts-prev');
+  if(tsPrev) tsPrev.onclick = ()=>{ state.tsMonth = shiftMonth(state.tsMonth,-1); state.tsSelected=null; render(); };
+  const tsNext = document.getElementById('ts-next');
+  if(tsNext) tsNext.onclick = ()=>{ if(state.tsMonth<currentMonthKey()){ state.tsMonth = shiftMonth(state.tsMonth,1); state.tsSelected=null; render(); } };
+
+  const exportMy = document.getElementById('export-my-csv');
+  if(exportMy) exportMy.onclick = async ()=>{
+    const monthData = await loadMonthReportsAll(state.tsMonth);
+    exportEmployeeMonthCSV(state.profile.name, state.tsMonth, monthData);
+    showToast('Timesheet downloaded');
+  };
+
+  const tsEditDay = document.getElementById('ts-edit-day');
+  if(tsEditDay) tsEditDay.onclick = ()=>{
+    state.role = 'employee';
+    state.date = state.tsSelected;
+    state.editing = false;
+    state.draft = { status:'office', entries:[{id:uid(),start:'',end:'',description:''}], leaveType:'Full day', leaveReason:'' };
+    render();
+  };
+
+  /* --- Manager: employee selector + month nav + exports --- */
+  const mgrEmp = document.getElementById('mgr-employee');
+  if(mgrEmp) mgrEmp.onchange = ()=>{ state.mgrEmployee = mgrEmp.value; state.tsSelected = null; render(); };
+
+  const mgrPrev = document.getElementById('mgr-ts-prev');
+  if(mgrPrev) mgrPrev.onclick = ()=>{ state.mgrMonth = shiftMonth(state.mgrMonth,-1); state.tsSelected=null; render(); };
+  const mgrNext = document.getElementById('mgr-ts-next');
+  if(mgrNext) mgrNext.onclick = ()=>{ if(state.mgrMonth<currentMonthKey()){ state.mgrMonth = shiftMonth(state.mgrMonth,1); state.tsSelected=null; render(); } };
+
+  const exportEmp = document.getElementById('export-emp-csv');
+  if(exportEmp) exportEmp.onclick = async ()=>{
+    if(!state.mgrEmployee) return;
+    const monthData = await loadMonthReportsAll(state.mgrMonth);
+    exportEmployeeMonthCSV(state.mgrEmployee, state.mgrMonth, monthData);
+    showToast('Timesheet downloaded');
+  };
+
+  const exportTeam = document.getElementById('export-team-csv');
+  if(exportTeam) exportTeam.onclick = async ()=>{
+    const monthData = await loadMonthReportsAll(state.mgrMonth);
+    exportTeamMonthCSV(state.mgrMonth, monthData, state.teamMembers);
+    showToast('Team timesheet downloaded');
+  };
+
+  /* --- Calendar day click (shared by employee + manager timesheet) --- */
+  document.querySelectorAll('.ts-day[data-iso]').forEach(cell=>{
+    cell.onclick = ()=>{
+      const iso = cell.dataset.iso;
+      if(!iso) return;
+      state.tsSelected = state.tsSelected===iso ? null : iso;
+      render();
+    };
+  });
+}
+
+function updateTodayTotal(){
+  const totalEl = document.getElementById('today-total-hrs');
+  if(!totalEl) return;
+  let sum = 0;
+  document.querySelectorAll('.ledger-row').forEach(row=>{
+    const s = row.querySelector('.e-start').value;
+    const en = row.querySelector('.e-end').value;
+    sum += entryHours({start:s, end:en});
+  });
+  totalEl.textContent = fmtHours(sum)+'h';
+}
+
+function syncEntriesFromDOM(){
+  document.querySelectorAll('.ledger-row').forEach(row=>{
+    const id = row.dataset.id;
+    const e = state.draft.entries.find(x=>x.id===id);
+    if(!e) return;
+    e.start = row.querySelector('.e-start').value;
+    e.end = row.querySelector('.e-end').value;
+    e.description = row.querySelector('.e-desc').value;
+  });
+}
+
+async function submitReport(){
+  syncEntriesFromDOM();
+  const d = state.draft;
+
+  if(d.status === 'leave'){
+    if(!d.leaveReason || !d.leaveReason.trim()){
+      showToast('Please enter a reason for your leave');
+      return;
+    }
+  } else {
+    const touched = d.entries.filter(e => e.start || e.end || (e.description && e.description.trim()));
+    if(touched.length===0){
+      showToast('Add at least one work entry');
+      return;
+    }
+    const incomplete = touched.filter(e => !e.start || !e.end || !(e.description && e.description.trim()));
+    if(incomplete.length){
+      showToast('Every entry needs a start time, end time and description');
+      return;
+    }
+    const badRange = touched.filter(e => timeToHours(e.end) <= timeToHours(e.start));
+    if(badRange.length){
+      showToast('End time must be after start time');
+      return;
+    }
+  }
+
+  const report = {
+    status: d.status,
+    entries: d.status!=='leave' ? d.entries.filter(e=>e.description && e.description.trim()) : [],
+    leaveType: d.status==='leave' ? d.leaveType : null,
+    leaveReason: d.status==='leave' ? d.leaveReason.trim() : null,
+    managerName: state.profile.managerName || '',
+    submittedAt: new Date().toISOString()
+  };
+
+  const reports = await loadDayReports(state.date);
+  reports[state.profile.name] = report;
+  await saveDayReports(state.date, reports);
+  await registerMember(state.profile.name);
+
+  state.editing = false;
+  showToast('Report submitted to ' + (state.profile.managerName || 'your manager'));
+  render();
+}
+
+/* ---------- Init ---------- */
+(async function init(){
+  await loadProfile();
+  if(state.draft.entries.length===0 && state.draft.status!=='leave'){
+    state.draft.entries.push({id:uid(), start:'', end:'', description:''});
+  }
+  render();
+})();
+</script>
+</body>
+</html>
