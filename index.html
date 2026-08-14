@@ -6,6 +6,7 @@
 <title>Daybook — Team Daily Report</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root{
     --paper:#F7F5F0;
@@ -219,6 +220,23 @@
 
   select#mgr-employee{min-width:200px;}
 
+  /* Auth screens */
+  .auth-wrap{max-width:400px;margin:60px auto;text-align:center;}
+  .auth-wrap .icon-badge{width:44px;height:44px;border-radius:12px;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;margin:0 auto 18px;}
+  .auth-wrap h2{font-family:'Space Grotesk';font-size:19px;margin:0 0 8px;}
+  .auth-wrap p{font-size:13.5px;color:var(--ink-soft);line-height:1.5;margin:0 0 22px;}
+  .auth-wrap .card{padding:24px;text-align:left;}
+  .auth-wrap .field{margin-bottom:14px;}
+  .auth-wrap .field label{display:block;margin-bottom:6px;}
+  .auth-wrap input, .auth-wrap select{width:100%;}
+  .role-pick{display:flex;gap:10px;margin-bottom:14px;}
+  .role-pick button{flex:1;padding:12px;border:1.5px solid var(--line);border-radius:8px;background:var(--paper);font-weight:600;font-size:13.5px;cursor:pointer;transition:all .15s;}
+  .role-pick button.active{border-color:var(--navy);background:var(--wfh-bg);color:var(--navy);}
+  .role-pick button:disabled{opacity:.45;cursor:not-allowed;}
+  .signout-row{display:flex;align-items:center;gap:10px;margin-left:10px;}
+  .who-badge{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-soft);}
+  .who-badge .dot-av{width:24px;height:24px;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;font-family:'Space Grotesk';}
+
   @media(max-width:640px){
     .status-grid{grid-template-columns:1fr;}
     .ledger-row{grid-template-columns:1fr 1fr 54px 34px;grid-template-areas:"start end hrs del" "desc desc desc desc";}
@@ -240,28 +258,11 @@
    See DEPLOY_GUIDE.md for exactly how to get these two values.
    The app will show a "Setup needed" banner until both are filled in.
    ========================================================================= */
-const SUPABASE_URL = 'https://qshxhohyauniilyqiqda.supabase.co';        // e.g. https://xxxxx.supabase.co
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFzaHhob2h5YXVuaWlseXFpcWRhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1NzM0NDYsImV4cCI6MjA5OTE0OTQ0Nn0.lICjIQ4NzKl9GEmzWPWpB2Bb4qYeiXjDrRjqN6S8n6E';  // the long "anon public" key
+const SUPABASE_URL = 'YOUR_SUPABASE_URL';        // e.g. https://xxxxx.supabase.co
+const SUPABASE_ANON_KEY = 'YOUR_SUPABASE_ANON_KEY';  // the long "anon public" key
 
 const SB_READY = SUPABASE_URL.startsWith('https://') && !SUPABASE_ANON_KEY.startsWith('YOUR_');
-
-async function sbFetch(path, options={}){
-  const res = await fetch(SUPABASE_URL + '/rest/v1/' + path, {
-    ...options,
-    headers: {
-      'apikey': SUPABASE_ANON_KEY,
-      'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
-      'Content-Type': 'application/json',
-      ...(options.headers || {})
-    }
-  });
-  if(!res.ok){
-    const text = await res.text().catch(()=> '');
-    throw new Error('Supabase error ' + res.status + ': ' + text);
-  }
-  const text = await res.text();
-  return text ? JSON.parse(text) : null;
-}
+const sb = (SB_READY && window.supabase) ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
 function rowToReport(row){
   return {
@@ -274,37 +275,117 @@ function rowToReport(row){
   };
 }
 
-/* ---------- Storage helpers ---------- */
-/* Profile (name + manager) lives in this browser only — no login system,
-   so each employee's own device just remembers who they are. */
-async function loadProfile(){
-  try{
-    const raw = localStorage.getItem('daybook_profile');
-    if(raw) state.profile = JSON.parse(raw);
-  }catch(e){}
-  state.loadedProfile = true;
-}
-async function saveProfile(){
-  try{ localStorage.setItem('daybook_profile', JSON.stringify(state.profile)); }
-  catch(e){ console.error('profile save failed', e); }
+/* ---------- Auth state machine ----------
+   screen: loading | login | sent | setup-profile | app
+   Every login/logout/profile-save event re-decides the screen and repaints. */
+const auth = {
+  session: null,
+  profile: null,     // row from the `profiles` table
+  screen: 'loading',
+  lastEmail: '',
+  canBeManager: false, // is this email on the manager_emails allowlist?
+};
+
+async function initAuth(){
+  if(!sb){ auth.screen = 'login'; paint(); return; }
+  const { data:{ session } } = await sb.auth.getSession();
+  await handleSession(session);
+  sb.auth.onAuthStateChange((_event, session)=>{ handleSession(session); });
 }
 
-/* Daily reports live in the shared Supabase database, so every employee
-   and the manager see the same live data from any device. */
-async function loadDayReports(date){
-  if(!SB_READY) return {};
+async function checkManagerEligibility(){
+  auth.canBeManager = false;
+  if(!sb || !auth.session) return;
   try{
-    const rows = await sbFetch(`daily_reports?report_date=eq.${date}&select=*`);
+    const email = auth.session.user.email;
+    const { data } = await sb.from('manager_emails').select('email').ilike('email', email).maybeSingle();
+    auth.canBeManager = !!data;
+  }catch(e){ auth.canBeManager = false; }
+}
+
+async function handleSession(session){
+  auth.session = session;
+  if(!session){
+    auth.profile = null;
+    auth.screen = 'login';
+    paint();
+    return;
+  }
+  const { data, error } = await sb.from('profiles').select('*').eq('id', session.user.id).maybeSingle();
+  if(error) console.error(error);
+  auth.profile = data || null;
+  if(!auth.profile){
+    await checkManagerEligibility();
+    auth.screen = 'setup-profile';
+  } else {
+    state.profile = { name: auth.profile.full_name, managerName: auth.profile.manager_name || '' };
+    auth.screen = 'app';
+  }
+  paint();
+}
+
+async function sendMagicLink(email){
+  if(!sb){ showToast('Database not set up yet — see DEPLOY_GUIDE.md'); return; }
+  if(!email || !email.includes('@')){ showToast('Enter a valid email address'); return; }
+  const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } });
+  if(error){ showToast(error.message); return; }
+  auth.lastEmail = email;
+  auth.screen = 'sent';
+  paint();
+}
+
+async function completeProfile(fullName, role, managerName){
+  if(!sb || !auth.session) return;
+  if(!fullName.trim()){ showToast('Please enter your name'); return; }
+  if(role==='manager' && !auth.canBeManager){
+    showToast('Your email isn\'t approved for manager access — ask your admin to add it');
+    return;
+  }
+  if(role==='employee' && !managerName.trim()){ showToast('Please enter your reporting manager'); return; }
+  const payload = {
+    id: auth.session.user.id,
+    email: auth.session.user.email,
+    full_name: fullName.trim(),
+    role,
+    manager_name: role==='employee' ? managerName.trim() : null
+  };
+  const { error } = await sb.from('profiles').insert(payload);
+  if(error){ showToast('Could not save profile — ' + error.message); return; }
+  auth.profile = payload;
+  state.profile = { name: payload.full_name, managerName: payload.manager_name || '' };
+  auth.screen = 'app';
+  paint();
+}
+
+async function updateManagerName(name){
+  if(!sb || !auth.session) return;
+  state.profile.managerName = name;
+  auth.profile.manager_name = name;
+  await sb.from('profiles').update({ manager_name: name }).eq('id', auth.session.user.id);
+}
+
+async function signOut(){
+  if(sb) await sb.auth.signOut();
+}
+
+/* ---------- Reports (shared, live database, protected by row-level
+   security so a signed-in user can only insert/update their own rows) ---------- */
+async function loadDayReports(date){
+  if(!sb) return {};
+  try{
+    const { data, error } = await sb.from('daily_reports').select('*').eq('report_date', date);
+    if(error) throw error;
     const map = {};
-    (rows || []).forEach(r=>{ map[r.employee_name] = rowToReport(r); });
+    (data || []).forEach(r=>{ map[r.employee_name] = rowToReport(r); });
     return map;
   }catch(e){ console.error(e); showToast('Could not load reports — check your connection'); return {}; }
 }
 
 async function saveDayReports(date, obj){
-  if(!SB_READY){ showToast('Database not set up yet — see DEPLOY_GUIDE.md'); return; }
+  if(!sb || !auth.session){ showToast('Please sign in first'); return; }
   const rep = obj[state.profile.name];
   const payload = {
+    employee_id: auth.session.user.id,
     employee_name: state.profile.name,
     manager_name: rep.managerName || null,
     report_date: date,
@@ -315,37 +396,35 @@ async function saveDayReports(date, obj){
     submitted_at: rep.submittedAt
   };
   try{
-    await sbFetch('daily_reports?on_conflict=employee_name,report_date', {
-      method: 'POST',
-      headers: { 'Prefer': 'resolution=merge-duplicates' },
-      body: JSON.stringify(payload)
-    });
-  }catch(e){ console.error(e); showToast('Could not save — check your connection'); }
+    const { error } = await sb.from('daily_reports').upsert(payload, { onConflict: 'employee_id,report_date' });
+    if(error) throw error;
+  }catch(e){ console.error(e); showToast('Could not save — ' + (e.message || 'check your connection')); }
 }
 
 async function registerMember(name){
-  // No-op — employee names are simply read back from the reports table
-  // (see loadTeamMembers), so there's no separate list to keep in sync.
+  // No-op — employee names now come from the `profiles` table (see
+  // loadTeamMembers), created automatically when someone signs in.
 }
 
 async function loadTeamMembers(){
-  if(!SB_READY) return [];
+  if(!sb) return [];
   try{
-    const rows = await sbFetch('daily_reports?select=employee_name');
-    const names = [...new Set((rows || []).map(r=>r.employee_name))];
-    return names.sort((a,b)=>a.localeCompare(b));
+    const { data, error } = await sb.from('profiles').select('full_name').eq('role','employee');
+    if(error) throw error;
+    return [...new Set((data || []).map(r=>r.full_name))].sort((a,b)=>a.localeCompare(b));
   }catch(e){ console.error(e); return []; }
 }
 
 async function loadMonthReportsAll(yearMonth){
-  if(!SB_READY) return {};
+  if(!sb) return {};
   const [y,m] = yearMonth.split('-').map(Number);
   const first = yearMonth + '-01';
   const last = yearMonth + '-' + String(new Date(y, m, 0).getDate()).padStart(2,'0');
   try{
-    const rows = await sbFetch(`daily_reports?report_date=gte.${first}&report_date=lte.${last}&select=*`);
+    const { data, error } = await sb.from('daily_reports').select('*').gte('report_date', first).lte('report_date', last);
+    if(error) throw error;
     const map = {};
-    (rows || []).forEach(r=>{
+    (data || []).forEach(r=>{
       if(!map[r.report_date]) map[r.report_date] = {};
       map[r.report_date][r.employee_name] = rowToReport(r);
     });
@@ -572,6 +651,7 @@ function setupBanner(){
 }
 
 function header(){
+  const isManager = auth.profile && auth.profile.role === 'manager';
   return `
   ${setupBanner()}
   <div class="topbar">
@@ -588,22 +668,131 @@ function header(){
       </div>
       <div class="tag">Daily status &amp; work log for the team</div>
     </div>
-    <div class="role-switch">
-      <button data-role="employee" class="${state.role==='employee'?'active':''}">Daily Entry</button>
-      <button data-role="timesheet" class="${state.role==='timesheet'?'active':''}">My Timesheet</button>
-      <button data-role="manager" class="${state.role==='manager'?'active':''}">Manager</button>
+    <div style="display:flex;align-items:center;">
+      <div class="role-switch">
+        <button data-role="employee" class="${state.role==='employee'?'active':''}">Daily Entry</button>
+        <button data-role="timesheet" class="${state.role==='timesheet'?'active':''}">My Timesheet</button>
+        ${isManager ? `<button data-role="manager" class="${state.role==='manager'?'active':''}">Manager</button>` : ''}
+      </div>
+      <div class="signout-row">
+        <div class="who-badge">
+          <div class="dot-av">${esc(initials(state.profile.name))}</div>
+          <span>${esc(state.profile.name)}</span>
+        </div>
+        <button class="btn-text" id="sign-out">Sign out</button>
+      </div>
     </div>
   </div>`;
 }
 
+/* ---------- Auth screens ---------- */
+function loadingScreen(){
+  return `<div class="auth-wrap"><p>Loading…</p></div>`;
+}
+
+function loginScreen(){
+  return `
+  ${setupBanner()}
+  <div class="auth-wrap">
+    <div class="icon-badge">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="2" y="4" width="16" height="13" rx="2" stroke="white" stroke-width="1.5"/><path d="M2 6l8 5 8-5" stroke="white" stroke-width="1.5"/></svg>
+    </div>
+    <h2>Sign in to Daybook</h2>
+    <p>Enter your work email and we'll send you a one-click sign-in link — no password needed.</p>
+    <div class="card">
+      <div class="field">
+        <label style="font-size:12px;font-weight:600;color:var(--ink-soft);">Work email</label>
+        <input type="email" id="login-email" placeholder="you@company.com" style="font-family:'Inter';font-size:14px;padding:10px 12px;border:1px solid var(--line);border-radius:7px;background:var(--paper);">
+      </div>
+      <button class="btn btn-primary" id="send-link" style="width:100%;">Send sign-in link</button>
+    </div>
+  </div>`;
+}
+
+function magicLinkSentScreen(){
+  return `
+  <div class="auth-wrap">
+    <div class="icon-badge" style="background:var(--office);">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M4 10l4 4 8-8" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <h2>Check your email</h2>
+    <p>We sent a sign-in link to <strong>${esc(auth.lastEmail)}</strong>. Open it on this device to continue — the link expires after a short while.</p>
+    <button class="btn-text" id="back-to-login">Use a different email</button>
+  </div>`;
+}
+
+function setupProfileScreen(){
+  const mgrLocked = !auth.canBeManager;
+  return `
+  <div class="auth-wrap">
+    <div class="icon-badge">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="7" r="3.2" stroke="white" stroke-width="1.5"/><path d="M3.5 17c1-3.5 4-5 6.5-5s5.5 1.5 6.5 5" stroke="white" stroke-width="1.5"/></svg>
+    </div>
+    <h2>Set up your profile</h2>
+    <p>One-time setup — signed in as ${esc((auth.session||{}).user ? auth.session.user.email : '')}.</p>
+    <div class="card">
+      <div class="field">
+        <label style="font-size:12px;font-weight:600;color:var(--ink-soft);">Your full name</label>
+        <input type="text" id="setup-name" placeholder="e.g. Aisha Khan" style="font-family:'Inter';font-size:14px;padding:10px 12px;border:1px solid var(--line);border-radius:7px;background:var(--paper);">
+      </div>
+      <div class="field">
+        <label style="font-size:12px;font-weight:600;color:var(--ink-soft);">I am a...</label>
+        <div class="role-pick">
+          <button type="button" data-pick-role="employee" class="active">Employee</button>
+          <button type="button" data-pick-role="manager" ${mgrLocked ? 'disabled title="Ask your admin to approve your email for manager access"' : ''}>Manager ${mgrLocked ? '🔒' : ''}</button>
+        </div>
+        ${mgrLocked ? `<div class="hint" style="margin-top:-4px;">Manager access is locked for your email. Ask your admin to add you, then refresh this page.</div>` : ''}
+      </div>
+      <div class="field" id="setup-manager-field">
+        <label style="font-size:12px;font-weight:600;color:var(--ink-soft);">Reporting manager</label>
+        <input type="text" id="setup-manager" placeholder="e.g. Rahul Verma" style="font-family:'Inter';font-size:14px;padding:10px 12px;border:1px solid var(--line);border-radius:7px;background:var(--paper);">
+      </div>
+      <button class="btn btn-primary" id="setup-continue" style="width:100%;">Continue</button>
+    </div>
+  </div>`;
+}
+
+let pickedRole = 'employee';
+
+function bindAuthEvents(){
+  const sendLink = document.getElementById('send-link');
+  if(sendLink){
+    sendLink.onclick = ()=> sendMagicLink(document.getElementById('login-email').value.trim());
+  }
+  const backToLogin = document.getElementById('back-to-login');
+  if(backToLogin){ backToLogin.onclick = ()=>{ auth.screen='login'; paint(); }; }
+
+  pickedRole = 'employee';
+  document.querySelectorAll('[data-pick-role]').forEach(btn=>{
+    if(btn.disabled) return;
+    btn.onclick = ()=>{
+      pickedRole = btn.dataset.pickRole;
+      document.querySelectorAll('[data-pick-role]').forEach(b=>b.classList.toggle('active', b===btn));
+      document.getElementById('setup-manager-field').style.display = pickedRole==='employee' ? '' : 'none';
+    };
+  });
+  const setupContinue = document.getElementById('setup-continue');
+  if(setupContinue){
+    setupContinue.onclick = ()=>{
+      const name = document.getElementById('setup-name').value;
+      const mgr = document.getElementById('setup-manager').value;
+      completeProfile(name, pickedRole, mgr);
+    };
+  }
+}
+
+/* ---------- Root paint: decides auth screen vs. the real app ---------- */
+function paint(){
+  const app = document.getElementById('app');
+  if(auth.screen==='loading'){ app.innerHTML = loadingScreen(); return; }
+  if(auth.screen==='login'){ app.innerHTML = loginScreen(); bindAuthEvents(); return; }
+  if(auth.screen==='sent'){ app.innerHTML = magicLinkSentScreen(); bindAuthEvents(); return; }
+  if(auth.screen==='setup-profile'){ app.innerHTML = setupProfileScreen(); bindAuthEvents(); return; }
+  render();
+}
+
 /* ---------- Employee view ---------- */
 async function employeeView(){
-  if(!state.loadedProfile) await loadProfile();
-
-  if(!state.profile.name){
-    return profileSetupCard();
-  }
-
   // load today's report for this person if not editing fresh
   const reports = await loadDayReports(state.date);
   const mine = reports[state.profile.name] || null;
@@ -614,25 +803,6 @@ async function employeeView(){
   }
 
   return formCard(mine);
-}
-
-function profileSetupCard(){
-  return `
-  <div class="card section">
-    <h2>Set up your profile</h2>
-    <div class="profile-row">
-      <div class="field">
-        <label>Your name <span class="req">*</span></label>
-        <input type="text" id="pf-name" placeholder="e.g. Aisha Khan">
-      </div>
-      <div class="field">
-        <label>Reporting manager</label>
-        <input type="text" id="pf-manager" placeholder="e.g. Rahul Verma">
-      </div>
-      <button class="btn btn-primary" id="pf-save">Continue</button>
-    </div>
-    <div class="hint">Saved on this device so you don't have to re-enter it next time.</div>
-  </div>`;
 }
 
 function submittedCard(report, reports){
@@ -694,7 +864,6 @@ function formCard(existing){
         <label style="font-size:12px;font-weight:600;color:var(--ink-soft);">Date</label>
         <input type="date" id="date-picker" value="${state.date}" max="${todayISO()}">
       </div>
-      <button class="btn-text" id="who-am-i">Not ${esc(state.profile.name)}?</button>
     </div>
   </div>
 
@@ -782,10 +951,6 @@ function statusLabel(s){
 
 /* ---------- Timesheet view (employee's own month) ---------- */
 async function timesheetView(){
-  if(!state.loadedProfile) await loadProfile();
-  if(!state.profile.name){
-    return profileSetupCard();
-  }
   const monthData = await loadMonthReportsAll(state.tsMonth);
   const s = monthSummary(state.profile.name, monthData);
   const selectedReport = state.tsSelected ? (monthData[state.tsSelected]||{})[state.profile.name] : null;
@@ -973,36 +1138,12 @@ function bindEvents(){
     b.onclick = ()=>{ state.role = b.dataset.role; render(); };
   });
 
-  const pfSave = document.getElementById('pf-save');
-  if(pfSave){
-    pfSave.onclick = async ()=>{
-      const name = document.getElementById('pf-name').value.trim();
-      const mgr = document.getElementById('pf-manager').value.trim();
-      if(!name){ showToast('Please enter your name'); return; }
-      state.profile = { name, managerName: mgr };
-      await saveProfile();
-      await registerMember(name);
-      render();
-    };
-  }
-
-  const whoAmI = document.getElementById('who-am-i');
-  if(whoAmI){
-    whoAmI.onclick = async ()=>{
-      state.profile = { name:'', managerName:'' };
-      state.editing = false;
-      state.draft = { status:'office', entries:[], leaveType:'Full day', leaveReason:'' };
-      await saveProfile();
-      render();
-    };
-  }
+  const signOutBtn = document.getElementById('sign-out');
+  if(signOutBtn){ signOutBtn.onclick = signOut; }
 
   const mgrInline = document.getElementById('pf-manager-inline');
   if(mgrInline){
-    mgrInline.onblur = async ()=>{
-      state.profile.managerName = mgrInline.value.trim();
-      await saveProfile();
-    };
+    mgrInline.onblur = ()=>{ updateManagerName(mgrInline.value.trim()); };
   }
 
   const datePicker = document.getElementById('date-picker');
@@ -1232,12 +1373,11 @@ async function submitReport(){
 }
 
 /* ---------- Init ---------- */
-(async function init(){
-  await loadProfile();
+(function init(){
   if(state.draft.entries.length===0 && state.draft.status!=='leave'){
     state.draft.entries.push({id:uid(), start:'', end:'', description:''});
   }
-  render();
+  initAuth();
 })();
 </script>
 </body>
