@@ -275,6 +275,26 @@ function rowToReport(row){
   };
 }
 
+/* ---------- Managers ---------- */
+async function loadManagers(){
+  if(!sb) return [];
+
+  try{
+    const { data, error } = await sb
+      .from('manager_emails')
+      .select('email, manager_name')
+      .order('manager_name');
+
+    if(error) throw error;
+
+    return data || [];
+  }catch(e){
+    console.error('Could not load managers:', e);
+    showToast('Could not load manager list — check Supabase RLS');
+    return [];
+  }
+}
+
 /* ---------- Auth state machine ----------
    screen: loading | login | sent | setup-profile | app
    Every login/logout/profile-save event re-decides the screen and repaints. */
@@ -307,20 +327,35 @@ async function handleSession(session){
   auth.session = session;
   if(!session){
     auth.profile = null;
+    auth.canBeManager = false;
     auth.screen = 'login';
     paint();
     return;
   }
-  const { data, error } = await sb.from('profiles').select('*').eq('id', session.user.id).maybeSingle();
+
+  // Always check the manager allow-list, even when a profile already exists.
+  // This lets an admin add a manager later without requiring code changes.
+  await checkManagerEligibility();
+
+  const { data, error } = await sb
+    .from('profiles')
+    .select('*')
+    .eq('id', session.user.id)
+    .maybeSingle();
+
   if(error) console.error(error);
   auth.profile = data || null;
+
   if(!auth.profile){
-    await checkManagerEligibility();
     auth.screen = 'setup-profile';
-  } else {
-    state.profile = { name: auth.profile.full_name, managerName: auth.profile.manager_name || '' };
+  }else{
+    state.profile = {
+      name: auth.profile.full_name,
+      managerName: auth.profile.manager_name || ''
+    };
     auth.screen = 'app';
   }
+
   paint();
 }
 
@@ -334,25 +369,56 @@ async function sendMagicLink(email){
   paint();
 }
 
-async function completeProfile(fullName, role, managerName){
+async function completeProfile(fullName, role, managerEmail){
   if(!sb || !auth.session) return;
-  if(!fullName.trim()){ showToast('Please enter your name'); return; }
-  if(role==='manager' && !auth.canBeManager){
+
+  if(!fullName.trim()){
+    showToast('Please enter your name');
+    return;
+  }
+
+  if(role === 'manager' && !auth.canBeManager){
     showToast('Your email isn\'t approved for manager access — ask your admin to add it');
     return;
   }
-  if(role==='employee' && !managerName.trim()){ showToast('Please enter your reporting manager'); return; }
+
+  if(!managerEmail){
+    showToast('Please select your reporting manager');
+    return;
+  }
+
+  const { data: manager, error: managerError } = await sb
+    .from('manager_emails')
+    .select('email, manager_name')
+    .eq('email', managerEmail)
+    .single();
+
+  if(managerError || !manager){
+    console.error(managerError);
+    showToast('Could not find the selected manager');
+    return;
+  }
+
   const payload = {
     id: auth.session.user.id,
     email: auth.session.user.email,
     full_name: fullName.trim(),
     role,
-    manager_name: role==='employee' ? managerName.trim() : null
+    manager_name: manager.manager_name
   };
+
   const { error } = await sb.from('profiles').insert(payload);
-  if(error){ showToast('Could not save profile — ' + error.message); return; }
+
+  if(error){
+    showToast('Could not save profile — ' + error.message);
+    return;
+  }
+
   auth.profile = payload;
-  state.profile = { name: payload.full_name, managerName: payload.manager_name || '' };
+  state.profile = {
+    name: payload.full_name,
+    managerName: payload.manager_name || ''
+  };
   auth.screen = 'app';
   paint();
 }
@@ -360,7 +426,7 @@ async function completeProfile(fullName, role, managerName){
 async function updateManagerName(name){
   if(!sb || !auth.session) return;
   state.profile.managerName = name;
-  auth.profile.manager_name = name;
+  if(auth.profile) auth.profile.manager_name = name;
   await sb.from('profiles').update({ manager_name: name }).eq('id', auth.session.user.id);
 }
 
@@ -370,20 +436,58 @@ async function signOut(){
 
 /* ---------- Reports (shared, live database, protected by row-level
    security so a signed-in user can only insert/update their own rows) ---------- */
-async function loadDayReports(date){
-  if(!sb) return {};
+async function loadMyDayReport(date){
+  if(!sb || !auth.session) return null;
+
   try{
-    const { data, error } = await sb.from('daily_reports').select('*').eq('report_date', date);
+    const { data, error } = await sb
+      .from('daily_reports')
+      .select('*')
+      .eq('report_date', date)
+      .eq('employee_id', auth.session.user.id)
+      .maybeSingle();
+
     if(error) throw error;
+    return data ? rowToReport(data) : null;
+  }catch(e){
+    console.error(e);
+    showToast('Could not load your report — check your connection');
+    return null;
+  }
+}
+
+async function loadManagerDayReports(date, managerName){
+  if(!sb || !managerName) return {};
+
+  try{
+    const { data, error } = await sb
+      .from('daily_reports')
+      .select('*')
+      .eq('report_date', date)
+      .eq('manager_name', managerName);
+
+    if(error) throw error;
+
     const map = {};
-    (data || []).forEach(r=>{ map[r.employee_name] = rowToReport(r); });
+    (data || []).forEach(r=>{
+      map[r.employee_name] = rowToReport(r);
+    });
     return map;
-  }catch(e){ console.error(e); showToast('Could not load reports — check your connection'); return {}; }
+  }catch(e){
+    console.error(e);
+    showToast('Could not load manager reports — check your connection');
+    return {};
+  }
 }
 
 async function saveDayReports(date, obj){
-  if(!sb || !auth.session){ showToast('Please sign in first'); return; }
+  if(!sb || !auth.session){
+    showToast('Please sign in first');
+    return;
+  }
+
   const rep = obj[state.profile.name];
+
   const payload = {
     employee_id: auth.session.user.id,
     employee_name: state.profile.name,
@@ -395,46 +499,103 @@ async function saveDayReports(date, obj){
     leave_reason: rep.status === 'leave' ? rep.leaveReason : null,
     submitted_at: rep.submittedAt
   };
+
   try{
-    const { error } = await sb.from('daily_reports').upsert(payload, { onConflict: 'employee_id,report_date' });
+    const { error } = await sb
+      .from('daily_reports')
+      .upsert(payload, { onConflict: 'employee_id,report_date' });
+
     if(error) throw error;
-  }catch(e){ console.error(e); showToast('Could not save — ' + (e.message || 'check your connection')); }
+  }catch(e){
+    console.error(e);
+    showToast('Could not save — ' + (e.message || 'check your connection'));
+  }
 }
 
 async function registerMember(name){
-  // No-op — employee names now come from the `profiles` table (see
-  // loadTeamMembers), created automatically when someone signs in.
+  // No-op — employee names now come from the profiles table.
 }
 
 async function loadTeamMembers(){
-  if(!sb) return [];
+  if(!sb || !state.profile.name) return [];
+
   try{
-    const { data, error } = await sb.from('profiles').select('full_name').eq('role','employee');
+    const { data, error } = await sb
+      .from('profiles')
+      .select('full_name, role')
+      .eq('manager_name', state.profile.name);
+
     if(error) throw error;
-    return [...new Set((data || []).map(r=>r.full_name))].sort((a,b)=>a.localeCompare(b));
-  }catch(e){ console.error(e); return []; }
+
+    return [...new Set((data || []).map(r=>r.full_name))]
+      .sort((a,b)=>a.localeCompare(b));
+  }catch(e){
+    console.error(e);
+    return [];
+  }
 }
 
-async function loadMonthReportsAll(yearMonth){
-  if(!sb) return {};
+async function loadMyMonthReports(yearMonth){
+  if(!sb || !auth.session) return {};
+
   const [y,m] = yearMonth.split('-').map(Number);
   const first = yearMonth + '-01';
   const last = yearMonth + '-' + String(new Date(y, m, 0).getDate()).padStart(2,'0');
+
   try{
-    const { data, error } = await sb.from('daily_reports').select('*').gte('report_date', first).lte('report_date', last);
+    const { data, error } = await sb
+      .from('daily_reports')
+      .select('*')
+      .eq('employee_id', auth.session.user.id)
+      .gte('report_date', first)
+      .lte('report_date', last);
+
     if(error) throw error;
+
     const map = {};
     (data || []).forEach(r=>{
       if(!map[r.report_date]) map[r.report_date] = {};
       map[r.report_date][r.employee_name] = rowToReport(r);
     });
     return map;
-  }catch(e){ console.error(e); return {}; }
+  }catch(e){
+    console.error(e);
+    return {};
+  }
+}
+
+async function loadManagerMonthReports(yearMonth, managerName){
+  if(!sb || !managerName) return {};
+
+  const [y,m] = yearMonth.split('-').map(Number);
+  const first = yearMonth + '-01';
+  const last = yearMonth + '-' + String(new Date(y, m, 0).getDate()).padStart(2,'0');
+
+  try{
+    const { data, error } = await sb
+      .from('daily_reports')
+      .select('*')
+      .eq('manager_name', managerName)
+      .gte('report_date', first)
+      .lte('report_date', last);
+
+    if(error) throw error;
+
+    const map = {};
+    (data || []).forEach(r=>{
+      if(!map[r.report_date]) map[r.report_date] = {};
+      map[r.report_date][r.employee_name] = rowToReport(r);
+    });
+    return map;
+  }catch(e){
+    console.error(e);
+    return {};
+  }
 }
 
 /* ---------- State ---------- */
 const state = {
-  role: 'employee', // employee | manager
+  role: 'employee', // employee | manager | timesheet
   date: todayISO(),
   profile: { name: '', managerName: '' },
   loadedProfile: false,
@@ -651,7 +812,7 @@ function setupBanner(){
 }
 
 function header(){
-  const isManager = auth.profile && auth.profile.role === 'manager';
+  const isManager = !!auth.canBeManager;
   return `
   ${setupBanner()}
   <div class="topbar">
@@ -721,32 +882,56 @@ function magicLinkSentScreen(){
   </div>`;
 }
 
-function setupProfileScreen(){
+async function setupProfileScreen(){
   const mgrLocked = !auth.canBeManager;
+  const managers = await loadManagers();
+  const currentEmail = auth.session?.user?.email || '';
+
+  const managerOptions = managers
+    .filter(manager => manager.email !== currentEmail)
+    .map(manager => `
+      <option value="${esc(manager.email)}">
+        ${esc(manager.manager_name)}
+      </option>
+    `).join('');
+
   return `
   <div class="auth-wrap">
     <div class="icon-badge">
       <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="7" r="3.2" stroke="white" stroke-width="1.5"/><path d="M3.5 17c1-3.5 4-5 6.5-5s5.5 1.5 6.5 5" stroke="white" stroke-width="1.5"/></svg>
     </div>
+
     <h2>Set up your profile</h2>
-    <p>One-time setup — signed in as ${esc((auth.session||{}).user ? auth.session.user.email : '')}.</p>
+
+    <p>One-time setup — signed in as ${esc(currentEmail)}.</p>
+
     <div class="card">
+
       <div class="field">
-        <label style="font-size:12px;font-weight:600;color:var(--ink-soft);">Your full name</label>
-        <input type="text" id="setup-name" placeholder="e.g. Aisha Khan" style="font-family:'Inter';font-size:14px;padding:10px 12px;border:1px solid var(--line);border-radius:7px;background:var(--paper);">
+        <label>Your full name</label>
+        <input type="text" id="setup-name" placeholder="e.g. Aisha Khan">
       </div>
+
       <div class="field">
-        <label style="font-size:12px;font-weight:600;color:var(--ink-soft);">I am a...</label>
+        <label>I am a...</label>
+
         <div class="role-pick">
           <button type="button" data-pick-role="employee" class="active">Employee</button>
           <button type="button" data-pick-role="manager" ${mgrLocked ? 'disabled title="Ask your admin to approve your email for manager access"' : ''}>Manager ${mgrLocked ? '🔒' : ''}</button>
         </div>
+
         ${mgrLocked ? `<div class="hint" style="margin-top:-4px;">Manager access is locked for your email. Ask your admin to add you, then refresh this page.</div>` : ''}
       </div>
+
       <div class="field" id="setup-manager-field">
-        <label style="font-size:12px;font-weight:600;color:var(--ink-soft);">Reporting manager</label>
-        <input type="text" id="setup-manager" placeholder="e.g. Rahul Verma" style="font-family:'Inter';font-size:14px;padding:10px 12px;border:1px solid var(--line);border-radius:7px;background:var(--paper);">
+        <label>Reporting manager</label>
+        <select id="setup-manager">
+          <option value="">Select your manager</option>
+          ${managerOptions || '<option value="" disabled>No managers available</option>'}
+        </select>
+        <div class="hint">Choose the manager who should receive your daily reports.</div>
       </div>
+
       <button class="btn btn-primary" id="setup-continue" style="width:100%;">Continue</button>
     </div>
   </div>`;
@@ -759,24 +944,36 @@ function bindAuthEvents(){
   if(sendLink){
     sendLink.onclick = ()=> sendMagicLink(document.getElementById('login-email').value.trim());
   }
+
   const backToLogin = document.getElementById('back-to-login');
-  if(backToLogin){ backToLogin.onclick = ()=>{ auth.screen='login'; paint(); }; }
+  if(backToLogin){
+    backToLogin.onclick = ()=>{
+      auth.screen='login';
+      paint();
+    };
+  }
 
   pickedRole = 'employee';
+
   document.querySelectorAll('[data-pick-role]').forEach(btn=>{
     if(btn.disabled) return;
+
     btn.onclick = ()=>{
       pickedRole = btn.dataset.pickRole;
-      document.querySelectorAll('[data-pick-role]').forEach(b=>b.classList.toggle('active', b===btn));
-      document.getElementById('setup-manager-field').style.display = pickedRole==='employee' ? '' : 'none';
+
+      document
+        .querySelectorAll('[data-pick-role]')
+        .forEach(b=>b.classList.toggle('active', b===btn));
     };
   });
+
   const setupContinue = document.getElementById('setup-continue');
+
   if(setupContinue){
     setupContinue.onclick = ()=>{
       const name = document.getElementById('setup-name').value;
-      const mgr = document.getElementById('setup-manager').value;
-      completeProfile(name, pickedRole, mgr);
+      const managerEmail = document.getElementById('setup-manager').value;
+      completeProfile(name, pickedRole, managerEmail);
     };
   }
 }
@@ -787,19 +984,25 @@ function paint(){
   if(auth.screen==='loading'){ app.innerHTML = loadingScreen(); return; }
   if(auth.screen==='login'){ app.innerHTML = loginScreen(); bindAuthEvents(); return; }
   if(auth.screen==='sent'){ app.innerHTML = magicLinkSentScreen(); bindAuthEvents(); return; }
-  if(auth.screen==='setup-profile'){ app.innerHTML = setupProfileScreen(); bindAuthEvents(); return; }
+  if(auth.screen==='setup-profile'){
+    app.innerHTML = '<div class="auth-wrap"><p>Loading profile setup…</p></div>';
+    setupProfileScreen().then(html=>{
+      app.innerHTML = html;
+      bindAuthEvents();
+    });
+    return;
+  }
   render();
 }
 
 /* ---------- Employee view ---------- */
 async function employeeView(){
-  // load today's report for this person if not editing fresh
-  const reports = await loadDayReports(state.date);
-  const mine = reports[state.profile.name] || null;
+  // Load only this signed-in user's report.
+  const mine = await loadMyDayReport(state.date);
   state.todaysReport = mine;
 
   if(mine && !state.editing){
-    return submittedCard(mine, reports);
+    return submittedCard(mine, {});
   }
 
   return formCard(mine);
@@ -858,7 +1061,9 @@ function formCard(existing){
     <div class="profile-row" style="align-items:center;">
       <div class="field" style="max-width:220px;">
         <label>Reporting to</label>
-        <input type="text" id="pf-manager-inline" value="${esc(state.profile.managerName)}" placeholder="Manager name">
+        <div style="padding:9px 11px;border:1px solid var(--line);border-radius:7px;background:var(--paper);color:var(--ink);font-size:14px;">
+          ${esc(state.profile.managerName || 'No manager assigned')}
+        </div>
       </div>
       <div class="date-row" style="flex:1;">
         <label style="font-size:12px;font-weight:600;color:var(--ink-soft);">Date</label>
@@ -951,7 +1156,7 @@ function statusLabel(s){
 
 /* ---------- Timesheet view (employee's own month) ---------- */
 async function timesheetView(){
-  const monthData = await loadMonthReportsAll(state.tsMonth);
+  const monthData = await loadMyMonthReports(state.tsMonth);
   const s = monthSummary(state.profile.name, monthData);
   const selectedReport = state.tsSelected ? (monthData[state.tsSelected]||{})[state.profile.name] : null;
 
@@ -997,6 +1202,10 @@ async function timesheetView(){
 
 /* ---------- Manager view ---------- */
 async function managerRoot(){
+  if(!auth.canBeManager){
+    return `<div class="card section"><div class="empty-state"><div class="big">Manager access is unavailable</div><div>Ask your admin to add your email to the manager list.</div></div></div>`;
+  }
+
   return `
   <div class="filter-row">
     <button class="chip ${state.mgrMode==='roster'?'active':''}" data-mgrmode="roster">Today's Roster</button>
@@ -1010,7 +1219,7 @@ async function managerTimesheetView(){
   if(state.teamMembers.length && !state.mgrEmployee){
     state.mgrEmployee = state.teamMembers[0];
   }
-  const monthData = await loadMonthReportsAll(state.mgrMonth);
+  const monthData = await loadManagerMonthReports(state.mgrMonth, state.profile.name);
 
   if(!state.teamMembers.length){
     return `<div class="card section"><div class="empty-state"><div class="big">No team members yet</div><div>Once employees submit a daily report, they'll appear here.</div></div></div>`;
@@ -1066,7 +1275,7 @@ async function managerTimesheetView(){
 }
 
 async function managerRosterView(){
-  const reports = await loadDayReports(state.date);
+  const reports = await loadManagerDayReports(state.date, state.profile.name);
   state.dayReports = reports;
   const names = Object.keys(reports);
   const counts = {office:0,wfh:0,leave:0};
@@ -1140,11 +1349,6 @@ function bindEvents(){
 
   const signOutBtn = document.getElementById('sign-out');
   if(signOutBtn){ signOutBtn.onclick = signOut; }
-
-  const mgrInline = document.getElementById('pf-manager-inline');
-  if(mgrInline){
-    mgrInline.onblur = ()=>{ updateManagerName(mgrInline.value.trim()); };
-  }
 
   const datePicker = document.getElementById('date-picker');
   if(datePicker){
@@ -1254,7 +1458,7 @@ function bindEvents(){
 
   const exportMy = document.getElementById('export-my-csv');
   if(exportMy) exportMy.onclick = async ()=>{
-    const monthData = await loadMonthReportsAll(state.tsMonth);
+    const monthData = await loadMyMonthReports(state.tsMonth);
     exportEmployeeMonthCSV(state.profile.name, state.tsMonth, monthData);
     showToast('Timesheet downloaded');
   };
@@ -1280,14 +1484,14 @@ function bindEvents(){
   const exportEmp = document.getElementById('export-emp-csv');
   if(exportEmp) exportEmp.onclick = async ()=>{
     if(!state.mgrEmployee) return;
-    const monthData = await loadMonthReportsAll(state.mgrMonth);
+    const monthData = await loadManagerMonthReports(state.mgrMonth, state.profile.name);
     exportEmployeeMonthCSV(state.mgrEmployee, state.mgrMonth, monthData);
     showToast('Timesheet downloaded');
   };
 
   const exportTeam = document.getElementById('export-team-csv');
   if(exportTeam) exportTeam.onclick = async ()=>{
-    const monthData = await loadMonthReportsAll(state.mgrMonth);
+    const monthData = await loadManagerMonthReports(state.mgrMonth, state.profile.name);
     exportTeamMonthCSV(state.mgrMonth, monthData, state.teamMembers);
     showToast('Team timesheet downloaded');
   };
@@ -1362,7 +1566,7 @@ async function submitReport(){
     submittedAt: new Date().toISOString()
   };
 
-  const reports = await loadDayReports(state.date);
+  const reports = {};
   reports[state.profile.name] = report;
   await saveDayReports(state.date, reports);
   await registerMember(state.profile.name);
