@@ -262,7 +262,16 @@ const SUPABASE_URL = 'https://qshxhohyauniilyqiqda.supabase.co';        // e.g. 
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFzaHhob2h5YXVuaWlseXFpcWRhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1NzM0NDYsImV4cCI6MjA5OTE0OTQ0Nn0.lICjIQ4NzKl9GEmzWPWpB2Bb4qYeiXjDrRjqN6S8n6E';  // the long "anon public" key
 
 const SB_READY = SUPABASE_URL.startsWith('https://') && !SUPABASE_ANON_KEY.startsWith('YOUR_');
-const sb = (SB_READY && window.supabase) ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
+const sb = (SB_READY && window.supabase)
+  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+      auth: {
+        persistSession: true,
+        autoRefreshToken: true,
+        detectSessionInUrl: true,
+        storage: window.localStorage
+      }
+    })
+  : null;
 
 function rowToReport(row){
   return {
@@ -287,7 +296,12 @@ async function loadManagers(){
 
     if(error) throw error;
 
-    return data || [];
+    return (data || [])
+      .filter(m => m.email && m.manager_name)
+      .map(m => ({
+        email: String(m.email).trim(),
+        manager_name: String(m.manager_name).trim()
+      }));
   }catch(e){
     console.error('Could not load managers:', e);
     showToast('Could not load manager list — check Supabase RLS');
@@ -304,6 +318,7 @@ const auth = {
   screen: 'loading',
   lastEmail: '',
   canBeManager: false, // is this email on the manager_emails allowlist?
+  managerDirectoryName: '', // canonical manager name from manager_emails
 };
 
 async function initAuth(){
@@ -313,14 +328,52 @@ async function initAuth(){
   sb.auth.onAuthStateChange((_event, session)=>{ handleSession(session); });
 }
 
+async function getCurrentManagerDirectoryName(){
+  if(!sb || !auth.session) return '';
+
+  try{
+    const email = String(auth.session.user.email || '').trim();
+    const { data, error } = await sb
+      .from('manager_emails')
+      .select('email, manager_name')
+      .eq('email', email)
+      .maybeSingle();
+
+    if(error) throw error;
+
+    return data && data.manager_name
+      ? String(data.manager_name).trim()
+      : '';
+  }catch(e){
+    console.error('Could not resolve manager directory name:', e);
+    return '';
+  }
+}
+
 async function checkManagerEligibility(){
   auth.canBeManager = false;
+  auth.managerDirectoryName = '';
   if(!sb || !auth.session) return;
+
   try{
-    const email = auth.session.user.email;
-    const { data } = await sb.from('manager_emails').select('email').ilike('email', email).maybeSingle();
+    const email = String(auth.session.user.email || '').trim();
+    const { data, error } = await sb
+      .from('manager_emails')
+      .select('email, manager_name')
+      .eq('email', email)
+      .maybeSingle();
+
+    if(error) throw error;
+
     auth.canBeManager = !!data;
-  }catch(e){ auth.canBeManager = false; }
+    auth.managerDirectoryName = data && data.manager_name
+      ? String(data.manager_name).trim()
+      : '';
+  }catch(e){
+    console.error('Manager eligibility check failed:', e);
+    auth.canBeManager = false;
+    auth.managerDirectoryName = '';
+  }
 }
 
 async function handleSession(session){
@@ -334,7 +387,7 @@ async function handleSession(session){
   }
 
   // Always check the manager allow-list, even when a profile already exists.
-  // This lets an admin add a manager later without requiring code changes.
+  // This also gives managers a canonical name from manager_emails.
   await checkManagerEligibility();
 
   const { data, error } = await sb
@@ -345,6 +398,10 @@ async function handleSession(session){
 
   if(error) console.error(error);
   auth.profile = data || null;
+
+  if(auth.profile && auth.profile.role === 'manager' && !auth.managerDirectoryName){
+    auth.managerDirectoryName = await getCurrentManagerDirectoryName();
+  }
 
   if(!auth.profile){
     auth.screen = 'setup-profile';
@@ -387,10 +444,12 @@ async function completeProfile(fullName, role, managerEmail){
     return;
   }
 
+  const cleanManagerEmail = String(managerEmail).trim();
+
   const { data: manager, error: managerError } = await sb
     .from('manager_emails')
     .select('email, manager_name')
-    .eq('email', managerEmail)
+    .eq('email', cleanManagerEmail)
     .single();
 
   if(managerError || !manager){
@@ -404,7 +463,7 @@ async function completeProfile(fullName, role, managerEmail){
     email: auth.session.user.email,
     full_name: fullName.trim(),
     role,
-    manager_name: manager.manager_name
+    manager_name: String(manager.manager_name || '').trim()
   };
 
   const { error } = await sb.from('profiles').insert(payload);
@@ -520,10 +579,12 @@ async function loadTeamMembers(){
   if(!sb || !state.profile.name) return [];
 
   try{
+    const managerDirectoryName = auth.managerDirectoryName || state.profile.name;
     const { data, error } = await sb
       .from('profiles')
-      .select('full_name, role')
-      .eq('manager_name', state.profile.name);
+      .select('id, full_name, role, manager_name')
+      .eq('manager_name', managerDirectoryName)
+      .neq('id', auth.session.user.id);
 
     if(error) throw error;
 
@@ -1219,7 +1280,8 @@ async function managerTimesheetView(){
   if(state.teamMembers.length && !state.mgrEmployee){
     state.mgrEmployee = state.teamMembers[0];
   }
-  const monthData = await loadManagerMonthReports(state.mgrMonth, state.profile.name);
+  const managerDirectoryName = auth.managerDirectoryName || state.profile.name;
+  const monthData = await loadManagerMonthReports(state.mgrMonth, managerDirectoryName);
 
   if(!state.teamMembers.length){
     return `<div class="card section"><div class="empty-state"><div class="big">No team members yet</div><div>Once employees submit a daily report, they'll appear here.</div></div></div>`;
@@ -1275,7 +1337,8 @@ async function managerTimesheetView(){
 }
 
 async function managerRosterView(){
-  const reports = await loadManagerDayReports(state.date, state.profile.name);
+  const managerDirectoryName = auth.managerDirectoryName || state.profile.name;
+  const reports = await loadManagerDayReports(state.date, managerDirectoryName);
   state.dayReports = reports;
   const names = Object.keys(reports);
   const counts = {office:0,wfh:0,leave:0};
@@ -1308,7 +1371,7 @@ async function managerRosterView(){
     ${filtered.length ? filtered.map(n=>rosterItem(n, reports[n])).join('') : `
       <div class="empty-state">
         <div class="big">No reports yet for this date</div>
-        <div>Once the team submits, their status will show up here.</div>
+        <div>Only reports assigned to ${esc(auth.managerDirectoryName || state.profile.name)} appear here.</div>
       </div>`}
   </div>`;
 }
@@ -1484,14 +1547,16 @@ function bindEvents(){
   const exportEmp = document.getElementById('export-emp-csv');
   if(exportEmp) exportEmp.onclick = async ()=>{
     if(!state.mgrEmployee) return;
-    const monthData = await loadManagerMonthReports(state.mgrMonth, state.profile.name);
+    const managerDirectoryName = auth.managerDirectoryName || state.profile.name;
+  const monthData = await loadManagerMonthReports(state.mgrMonth, managerDirectoryName);
     exportEmployeeMonthCSV(state.mgrEmployee, state.mgrMonth, monthData);
     showToast('Timesheet downloaded');
   };
 
   const exportTeam = document.getElementById('export-team-csv');
   if(exportTeam) exportTeam.onclick = async ()=>{
-    const monthData = await loadManagerMonthReports(state.mgrMonth, state.profile.name);
+    const managerDirectoryName = auth.managerDirectoryName || state.profile.name;
+  const monthData = await loadManagerMonthReports(state.mgrMonth, managerDirectoryName);
     exportTeamMonthCSV(state.mgrMonth, monthData, state.teamMembers);
     showToast('Team timesheet downloaded');
   };
@@ -1533,6 +1598,11 @@ function syncEntriesFromDOM(){
 async function submitReport(){
   syncEntriesFromDOM();
   const d = state.draft;
+
+  if(!state.profile.managerName){
+    showToast('No reporting manager is assigned to your profile');
+    return;
+  }
 
   if(d.status === 'leave'){
     if(!d.leaveReason || !d.leaveReason.trim()){
