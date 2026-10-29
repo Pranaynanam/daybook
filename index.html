@@ -6,6 +6,7 @@
 <title>Daybook — Team Daily Report</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
   :root{
     --paper:#F7F5F0;
@@ -22,6 +23,8 @@
     --wfh-bg:#E8EFF8;
     --leave:#B8763E;
     --leave-bg:#F5EBDF;
+    --hol:#7452A0;
+    --hol-bg:#F0EAF7;
     --danger:#B54545;
     --radius:10px;
     --shadow:0 1px 2px rgba(28,35,33,0.06), 0 8px 24px rgba(28,35,33,0.05);
@@ -35,38 +38,240 @@
     -webkit-font-smoothing:antialiased;
   }
   ::selection{background:#CFE3D6;}
-  .app{max-width:920px;margin:0 auto;padding:28px 20px 80px;}
+  .app{min-height:100vh;}
+  .auth-page{padding:28px 20px 60px;}
 
-  /* Header */
-  .topbar{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;margin-bottom:22px;flex-wrap:wrap;}
-  .brand{display:flex;flex-direction:column;gap:2px;}
-  .brand .mark{display:flex;align-items:center;gap:10px;}
-  .brand .mark svg{flex-shrink:0;}
-  .brand h1{font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:700;margin:0;letter-spacing:-0.01em;}
-  .brand .tag{font-size:12.5px;color:var(--ink-soft);margin-left:32px;}
-  .role-switch{display:flex;background:var(--paper-raised);border:1px solid var(--line);border-radius:999px;padding:3px;box-shadow:var(--shadow);}
-  .role-switch button{
-    border:none;background:transparent;padding:7px 16px;border-radius:999px;
-    font-family:'Inter';font-weight:600;font-size:13px;color:var(--ink-soft);cursor:pointer;transition:all .15s ease;
+  /* ---------- App shell: sidebar + main ---------- */
+  :root{
+    --side:#1D393F;
+    --side-ink:#E7EFED;
+    --side-dim:#9CB4B4;
+    --side-line:rgba(255,255,255,.10);
+    --accent:#7FD1A2;
+    --amber:#E4A15A;
   }
-  .role-switch button.active{background:var(--navy);color:#fff;}
+  .shell{display:grid;grid-template-columns:268px minmax(0,1fr);min-height:100vh;}
+  .sidebar{
+    background:var(--side);color:var(--side-ink);display:flex;flex-direction:column;
+    padding:22px 14px 16px;position:sticky;top:0;height:100vh;overflow-y:auto;z-index:40;
+  }
+  .sb-brand{display:flex;align-items:center;gap:11px;padding:2px 10px 20px;}
+  .sb-brand .name{font-family:'Space Grotesk',sans-serif;font-size:20px;font-weight:700;color:#fff;letter-spacing:-.01em;line-height:1.1;}
+  .sb-brand .sub{font-size:11.5px;color:var(--side-dim);margin-top:2px;}
+
+  .mode-box{background:rgba(255,255,255,.06);border:1px solid var(--side-line);border-radius:13px;padding:11px 11px 12px;margin-bottom:20px;}
+  .mode-label{font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--side-dim);font-weight:700;margin:0 3px 9px;}
+  .mode-seg{display:grid;grid-template-columns:1fr 1fr;gap:3px;background:rgba(0,0,0,.24);border-radius:10px;padding:3px;}
+  .mode-seg button{
+    border:none;background:transparent;color:var(--side-dim);font:600 12.5px 'Inter',sans-serif;
+    padding:8px 6px;border-radius:8px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;transition:all .15s ease;
+  }
+  .mode-seg button:hover{color:#fff;}
+  .mode-seg button.active{background:#F7F5F0;color:var(--navy);box-shadow:0 1px 3px rgba(0,0,0,.25);}
+  .mode-hint{font-size:11.5px;line-height:1.5;color:var(--side-dim);margin:10px 3px 0;}
+
+  .nav-group{margin-bottom:16px;}
+  .nav-title{font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;color:var(--side-dim);font-weight:700;padding:0 10px;margin-bottom:6px;}
+  .nav-item{
+    display:flex;align-items:center;gap:12px;width:100%;border:none;background:transparent;color:var(--side-ink);
+    font:500 13.5px 'Inter',sans-serif;padding:9px 10px;border-radius:9px;cursor:pointer;text-align:left;position:relative;transition:background .12s ease;
+  }
+  .nav-item svg{opacity:.72;flex-shrink:0;}
+  .nav-item:hover{background:rgba(255,255,255,.07);}
+  .nav-item.active{background:rgba(255,255,255,.14);color:#fff;font-weight:600;}
+  .nav-item.active svg{opacity:1;}
+  .nav-item.active::before{content:'';position:absolute;left:-14px;top:9px;bottom:9px;width:3px;border-radius:0 3px 3px 0;background:var(--accent);}
+  .nav-badge{margin-left:auto;font-size:11px;font-weight:700;background:var(--amber);color:#2B1C08;border-radius:999px;padding:1px 7px;min-width:20px;text-align:center;}
+  .nav-badge.soft{background:rgba(255,255,255,.16);color:#fff;}
+
+  .sb-user{margin-top:auto;border-top:1px solid var(--side-line);padding-top:14px;display:flex;align-items:center;gap:10px;}
+  .sb-av{width:36px;height:36px;border-radius:50%;background:#E7EFED;color:var(--navy);display:flex;align-items:center;justify-content:center;font:700 13px 'Space Grotesk',sans-serif;flex-shrink:0;}
+  .sb-user .who{min-width:0;}
+  .sb-user .nm{font-size:13px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .sb-user .rl{font-size:11.5px;color:var(--side-dim);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .sb-signout{margin-left:auto;background:transparent;border:1px solid var(--side-line);color:var(--side-ink);border-radius:8px;padding:7px;cursor:pointer;display:flex;flex-shrink:0;}
+  .sb-signout:hover{background:rgba(255,255,255,.08);}
+
+  .main{min-width:0;padding:0 36px 90px;}
+  .main-inner{max-width:960px;}
+  .m-bar{display:none;}
+  .scrim{display:none;}
+  .page-head{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;padding:32px 0 22px;flex-wrap:wrap;}
+  .page-title{font-family:'Space Grotesk',sans-serif;font-size:27px;font-weight:700;margin:0;letter-spacing:-.018em;}
+  .page-sub{margin:5px 0 0;color:var(--ink-soft);font-size:13.5px;}
+  .head-meta{display:flex;align-items:center;gap:10px;}
+  .head-date{font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--ink-soft);}
+  .mode-pill{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;font-weight:700;letter-spacing:.02em;padding:5px 11px;border-radius:999px;}
+  .mode-pill.manager{background:var(--wfh-bg);color:var(--wfh);}
+  .mode-pill.employee{background:var(--office-bg);color:var(--office);}
+  .demo-strip{display:flex;align-items:center;gap:8px;margin-top:18px;background:var(--wfh-bg);border:1px solid #C5D7EC;color:#2F557F;border-radius:9px;padding:8px 14px;font-size:12.5px;}
+
+
+  /* ---------- Day drawer: slides in from the right ---------- */
+  body.drawer-open{overflow:hidden;}
+  .drawer-layer{position:fixed;inset:0;z-index:70;}
+  .drawer-scrim{position:absolute;inset:0;background:rgba(15,25,28,.42);}
+  .drawer{
+    position:absolute;top:0;right:0;bottom:0;width:min(460px,100%);background:var(--paper-raised);
+    box-shadow:-14px 0 44px rgba(15,25,28,.24);display:flex;flex-direction:column;
+  }
+  .drawer-layer.enter .drawer-scrim{animation:dbFadeIn .22s ease both;}
+  .drawer-layer.enter .drawer{animation:dbSlideIn .28s cubic-bezier(.2,.8,.2,1) both;}
+  .drawer-layer.leaving .drawer-scrim{animation:dbFadeOut .2s ease both;}
+  .drawer-layer.leaving .drawer{animation:dbSlideOut .2s ease both;}
+  @keyframes dbFadeIn{from{opacity:0}to{opacity:1}}
+  @keyframes dbFadeOut{from{opacity:1}to{opacity:0}}
+  @keyframes dbSlideIn{from{transform:translateX(100%)}to{transform:translateX(0)}}
+  @keyframes dbSlideOut{from{transform:translateX(0)}to{transform:translateX(100%)}}
+  @media (prefers-reduced-motion:reduce){
+    .drawer-layer.enter .drawer,.drawer-layer.enter .drawer-scrim,.drawer-layer.leaving .drawer,.drawer-layer.leaving .drawer-scrim{animation-duration:.01s;}
+  }
+  .drawer-head{display:flex;align-items:flex-start;justify-content:space-between;gap:12px;padding:20px 22px 16px;border-bottom:1px solid var(--line);}
+  .drawer-eyebrow{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);font-weight:700;}
+  .drawer-title{font-family:'Space Grotesk',sans-serif;font-size:22px;font-weight:700;margin:4px 0 0;letter-spacing:-.01em;line-height:1.2;}
+  .drawer-close{width:36px;height:36px;border-radius:10px;border:1px solid var(--line);background:var(--paper);cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--ink);flex-shrink:0;}
+  .drawer-close:hover{border-color:var(--ink-soft);}
+  .drawer-body{padding:20px 22px 24px;overflow-y:auto;flex:1;-webkit-overflow-scrolling:touch;}
+  .drawer-summary{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:22px;}
+  .drawer-hours{font-family:'Space Grotesk',sans-serif;font-size:30px;font-weight:700;line-height:1;}
+  .drawer-hours small{font-size:13px;font-weight:500;color:var(--ink-soft);margin-left:4px;font-family:'Inter',sans-serif;}
+  .drawer-label{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);font-weight:700;margin:0 0 8px;}
+  .dr-entry{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;padding:13px 0;border-bottom:1px solid var(--line-soft);}
+  .dr-entry:first-of-type{border-top:1px solid var(--line-soft);}
+  .dr-time{font-family:'JetBrains Mono',monospace,monospace;font-size:12.5px;color:var(--navy);background:var(--paper);border:1px solid var(--line-soft);border-radius:6px;padding:3px 8px;align-self:start;white-space:nowrap;}
+  .dr-desc{font-size:14px;line-height:1.5;}
+  .dr-dur{grid-column:2;font-size:12px;color:var(--ink-soft);font-family:'JetBrains Mono',monospace,monospace;}
+  .dr-quote{background:var(--paper);border:1px solid var(--line-soft);border-left:3px solid var(--leave);border-radius:8px;padding:12px 14px;font-size:14px;line-height:1.6;}
+  .dr-meta{margin-top:20px;font-size:12.5px;color:var(--ink-soft);}
+  .dr-empty{text-align:center;padding:36px 10px;color:var(--ink-soft);}
+  .dr-empty .big{font-family:'Space Grotesk',sans-serif;font-size:16px;color:var(--ink);margin:10px 0 4px;}
+  .drawer-foot{padding:14px 22px;padding-bottom:max(14px, env(safe-area-inset-bottom));border-top:1px solid var(--line);display:flex;gap:10px;justify-content:flex-end;background:var(--paper-raised);}
+  .ts-day:focus-visible{outline:2px solid var(--navy);outline-offset:2px;}
+  @media(max-width:640px){
+    .drawer-head,.drawer-body,.drawer-foot{padding-left:18px;padding-right:18px;}
+    .drawer-foot .btn{flex:1;}
+  }
+
+  /* ---------- Assign a task: guided form ---------- */
+  .form-card{padding:24px 26px 22px;}
+  .card .form-title{font-family:'Space Grotesk',sans-serif;font-size:21px;font-weight:700;margin:0 0 4px;letter-spacing:-.01em;text-transform:none;color:var(--ink);}
+  .form-sub{font-size:13px;color:var(--ink-soft);margin:0 0 24px;}
+  .step{margin-bottom:22px;}
+  .step-label{display:flex;align-items:center;gap:10px;font-size:14px;font-weight:600;color:var(--ink);margin-bottom:10px;}
+  .step-n{width:22px;height:22px;border-radius:50%;background:var(--navy);color:#fff;font:700 11.5px 'Space Grotesk',sans-serif;display:inline-flex;align-items:center;justify-content:center;flex-shrink:0;}
+  .step-label .opt{font-weight:500;font-size:12px;color:var(--ink-soft);}
+  .step-label .step-aside{margin-left:auto;}
+  .control{width:100%;font-family:'Inter',sans-serif;font-size:15px;padding:11px 13px;border:1px solid var(--line);border-radius:8px;background:var(--paper);color:var(--ink);outline:none;transition:border-color .15s,background .15s;}
+  .control:focus{border-color:var(--navy);background:#fff;}
+  .control.lg{font-size:17px;padding:13px 14px;font-weight:500;}
+  textarea.control{min-height:92px;resize:vertical;line-height:1.5;}
+  .step .date-control{max-width:240px;}
+  .assignee-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(215px,1fr));gap:8px;}
+  .assignee-grid .assignee-check{margin-bottom:0;padding:11px 12px;border-radius:9px;}
+  .form-actions{display:flex;align-items:center;justify-content:space-between;gap:14px;padding-top:18px;border-top:1px solid var(--line);flex-wrap:wrap;}
+  .assign-summary{font-size:13px;color:var(--ink-soft);}
+  .assign-summary strong{color:var(--ink);}
+  .btn-lg{padding:12px 30px;font-size:14.5px;}
+  .tracker-head{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:12px;}
+  .tracker-head h2{margin:0;}
+  .tracker-sum{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px;font-size:12.5px;}
+  .tracker-sum span{background:var(--paper);border:1px solid var(--line-soft);border-radius:999px;padding:4px 11px;color:var(--ink-soft);}
+  .tracker-sum b{color:var(--ink);font-weight:700;}
+  .tracker-sum .warn b{color:var(--danger);}
+  .chip .cnt{opacity:.6;font-weight:600;margin-left:5px;}
+  @media(max-width:640px){
+    .form-card{padding:20px 16px 18px;}
+    .control{font-size:16px;}
+    .step .date-control{max-width:none;}
+    .assignee-grid{grid-template-columns:1fr;}
+    .assignee-grid .assignee-check{padding:13px 12px;}
+    .form-actions{flex-direction:column-reverse;align-items:stretch;}
+    .btn-lg{width:100%;}
+    .assign-summary{text-align:center;}
+  }
+
+  @media(max-width:640px){
+    .ts-grid{gap:4px;}
+    .ts-dow{font-size:10px;letter-spacing:0;}
+    .ts-day{aspect-ratio:1/1;padding:2px;gap:2px;border-radius:7px;}
+    .ts-day .dnum{font-size:12px;}
+    .ts-day .dchip{width:12px;}
+    .ts-hrs{font-size:8.5px;}
+    .legend{gap:10px 12px;}
+    .ts-toolbar{gap:10px;}
+    .ts-month-label{min-width:0;flex:1;}
+    .ts-month-nav{width:100%;justify-content:space-between;}
+  }
+
+  /* ---------- Home ---------- */
+  .home-row{display:grid;grid-template-columns:1.25fr 1fr;gap:16px;margin-bottom:16px;}
+  .home-row > .card{margin-bottom:0;}
+  .eyebrow{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);font-weight:700;margin-bottom:12px;}
+  .today-title{font-family:'Space Grotesk',sans-serif;font-size:19px;font-weight:600;margin-bottom:6px;}
+  .today-sub{font-size:13px;color:var(--ink-soft);line-height:1.5;margin:0 0 16px;}
+  .today-line{display:flex;align-items:center;gap:10px;margin-bottom:8px;}
+  .mono{font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--ink-soft);}
+  .quick-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+  .quick-btn{border:1.5px solid var(--line);border-radius:10px;background:var(--paper);padding:11px 8px;font:600 13px 'Inter',sans-serif;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:7px;transition:all .14s ease;color:var(--ink);}
+  .quick-btn:hover{transform:translateY(-1px);}
+  .quick-btn.office:hover{border-color:var(--office);background:var(--office-bg);}
+  .quick-btn.wfh:hover{border-color:var(--wfh);background:var(--wfh-bg);}
+  .quick-btn.leave:hover{border-color:var(--leave);background:var(--leave-bg);}
+  .quick-btn .qi{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;}
+  .quick-btn.office .qi{background:var(--office-bg);color:var(--office);}
+  .quick-btn.wfh .qi{background:var(--wfh-bg);color:var(--wfh);}
+  .quick-btn.leave .qi{background:var(--leave-bg);color:var(--leave);}
+  .tile-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .tile{background:var(--paper);border:1px solid var(--line-soft);border-radius:10px;padding:12px 14px;}
+  .tile .num{font-family:'Space Grotesk',sans-serif;font-size:24px;font-weight:700;line-height:1.1;}
+  .tile .lbl{font-size:12px;color:var(--ink-soft);margin-top:3px;}
+  .tile.office .num{color:var(--office);} .tile.wfh .num{color:var(--wfh);} .tile.leave .num{color:var(--leave);} .tile.warn .num{color:var(--danger);}
+  .section-title{font-family:'Space Grotesk',sans-serif;font-size:15px;font-weight:700;margin:26px 0 12px;display:flex;align-items:center;gap:10px;}
+  .section-title .rule{flex:1;height:1px;background:var(--line);}
+  .mini-task{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 0;border-bottom:1px solid var(--line-soft);font-size:13.5px;}
+  .mini-task:last-of-type{border-bottom:none;}
+  .mini-task .t{font-weight:600;min-width:0;}
+  .mini-task .d{font-size:12px;color:var(--ink-soft);font-family:'JetBrains Mono',monospace;white-space:nowrap;}
+  .mini-task .d.overdue{color:var(--danger);font-weight:600;}
+  .link-row{margin-top:10px;display:flex;justify-content:flex-end;}
+  .await-list{display:flex;flex-wrap:wrap;gap:8px;margin:14px 0 4px;}
+  .await-chip{display:inline-flex;align-items:center;gap:7px;border:1px solid #E9D3B4;background:var(--leave-bg);border-radius:999px;padding:4px 11px 4px 5px;font-size:12.5px;font-weight:600;}
+  .await-chip .avatar{width:22px;height:22px;font-size:9.5px;background:var(--leave);}
+  .all-clear{font-size:13px;color:var(--office);font-weight:600;margin-top:14px;}
+
+  @media(max-width:900px){
+    .shell{grid-template-columns:1fr;}
+    .sidebar{position:fixed;left:0;top:0;bottom:0;width:284px;transform:translateX(-102%);transition:transform .22s ease;}
+    .shell.nav-open .sidebar{transform:translateX(0);box-shadow:8px 0 30px rgba(0,0,0,.28);}
+    .shell.nav-open .scrim{display:block;position:fixed;inset:0;background:rgba(15,25,28,.45);z-index:35;}
+    .nav-item.active::before{left:-14px;}
+    .m-bar{display:flex;align-items:center;gap:12px;position:sticky;top:0;z-index:30;background:var(--paper);border-bottom:1px solid var(--line);margin:0 -18px;padding:11px 18px;}
+    .m-bar .burger{border:1px solid var(--line);background:var(--paper-raised);border-radius:9px;padding:7px;display:flex;cursor:pointer;color:var(--ink);}
+    .m-bar .mb-name{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:16px;}
+    .m-bar .mode-pill{margin-left:auto;}
+    .main{padding:0 18px 80px;}
+    .page-head{padding:22px 0 16px;}
+    .page-title{font-size:23px;}
+    .head-meta .mode-pill{display:none;}
+    .home-row{grid-template-columns:1fr;}
+  }
 
   /* Card base */
   .card{background:var(--paper-raised);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);}
   .section{padding:20px 22px;margin-bottom:16px;}
-  .section h2{font-family:'Space Grotesk';font-size:14px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);margin:0 0 14px;}
+  .section h2{font-family:'Space Grotesk',sans-serif;font-size:14px;text-transform:uppercase;letter-spacing:.06em;color:var(--ink-soft);margin:0 0 14px;}
 
   /* Profile row */
   .profile-row{display:flex;gap:12px;flex-wrap:wrap;align-items:flex-end;}
   .field{display:flex;flex-direction:column;gap:6px;flex:1;min-width:160px;}
   .field label{font-size:12px;font-weight:600;color:var(--ink-soft);}
   .field input, .field select, .field textarea{
-    font-family:'Inter';font-size:14px;padding:9px 11px;border:1px solid var(--line);border-radius:7px;
+    font-family:'Inter',sans-serif;font-size:14px;padding:9px 11px;border:1px solid var(--line);border-radius:7px;
     background:var(--paper);color:var(--ink);outline:none;transition:border-color .15s;
   }
   .field input:focus, .field select:focus, .field textarea:focus{border-color:var(--navy);background:#fff;}
   .btn{
-    font-family:'Inter';font-weight:600;font-size:13.5px;padding:9px 18px;border-radius:7px;border:1px solid transparent;
+    font-family:'Inter',sans-serif;font-weight:600;font-size:13.5px;padding:9px 18px;border-radius:7px;border:1px solid transparent;
     cursor:pointer;transition:all .15s ease;
   }
   .btn-primary{background:var(--navy);color:#fff;}
@@ -80,7 +285,7 @@
 
   /* Date control */
   .date-row{display:flex;align-items:center;gap:10px;}
-  .date-row input[type=date]{font-family:'JetBrains Mono';font-size:13.5px;padding:8px 10px;border:1px solid var(--line);border-radius:7px;background:var(--paper);}
+  .date-row input[type=date]{font-family:'JetBrains Mono',monospace;font-size:13.5px;padding:8px 10px;border:1px solid var(--line);border-radius:7px;background:var(--paper);}
 
   /* Status selector */
   .status-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;}
@@ -90,7 +295,7 @@
   }
   .status-card:hover{border-color:var(--ink-soft);}
   .status-card .icon{width:30px;height:30px;border-radius:8px;display:flex;align-items:center;justify-content:center;margin-bottom:10px;}
-  .status-card .name{font-family:'Space Grotesk';font-weight:600;font-size:14.5px;}
+  .status-card .name{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14.5px;}
   .status-card .desc{font-size:12px;color:var(--ink-soft);margin-top:3px;}
   .status-card.office .icon{background:var(--office-bg);color:var(--office);}
   .status-card.wfh .icon{background:var(--wfh-bg);color:var(--wfh);}
@@ -107,12 +312,14 @@
   /* Ledger (time entries) */
   .ledger{margin-top:16px;}
   .ledger-row{display:grid;grid-template-columns:100px 100px 1fr 54px 34px;gap:8px;align-items:center;margin-bottom:8px;}
-  .ledger-row input{font-family:'JetBrains Mono';font-size:13px;}
-  .ledger-row input[type=text]{font-family:'Inter';}
-  .e-hours{font-family:'JetBrains Mono';font-size:12.5px;color:var(--ink-soft);text-align:center;background:var(--paper);border:1px solid var(--line-soft);border-radius:6px;padding:9px 4px;}
+  .ledger-row input{font-family:'JetBrains Mono',monospace;font-size:13px;}
+  .ledger-row input[type=text]{font-family:'Inter',sans-serif;}
+  .ledger-row input[type=time], .ledger-row input[type=text]{width:100%;min-width:0;font-size:13.5px;padding:9px 10px;border:1px solid var(--line);border-radius:7px;background:var(--paper);color:var(--ink);outline:none;transition:border-color .15s,background .15s;}
+  .ledger-row input[type=time]:focus, .ledger-row input[type=text]:focus{border-color:var(--navy);background:#fff;}
+  .e-hours{font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--ink-soft);text-align:center;background:var(--paper);border:1px solid var(--line-soft);border-radius:6px;padding:9px 4px;}
   .e-hours.has-val{color:var(--navy);font-weight:600;border-color:var(--line);}
   .ledger-total{display:flex;justify-content:flex-end;gap:8px;align-items:baseline;margin-top:4px;padding-top:10px;border-top:1px solid var(--line-soft);font-size:13px;color:var(--ink-soft);}
-  .ledger-total strong{font-family:'JetBrains Mono';font-size:16px;color:var(--navy);}
+  .ledger-total strong{font-family:'JetBrains Mono',monospace;font-size:16px;color:var(--navy);}
   .add-row-btn{
     display:flex;align-items:center;gap:6px;background:none;border:1.5px dashed var(--line);color:var(--navy);
     font-weight:600;font-size:13px;padding:9px 14px;border-radius:7px;cursor:pointer;width:100%;justify-content:center;margin-top:4px;
@@ -124,7 +331,7 @@
   .tl-item:last-child{border-bottom:none;}
   .tl-dot-wrap{display:flex;flex-direction:column;align-items:center;padding-top:3px;}
   .tl-dot{width:8px;height:8px;border-radius:50%;background:var(--navy);}
-  .tl-time{font-family:'JetBrains Mono';font-size:12.5px;color:var(--ink-soft);white-space:nowrap;min-width:98px;}
+  .tl-time{font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--ink-soft);white-space:nowrap;min-width:98px;}
   .tl-desc{font-size:13.5px;line-height:1.5;}
 
   /* Submitted state banner */
@@ -136,12 +343,12 @@
   .banner .msg{font-size:13.5px;font-weight:600;color:var(--ink);}
   .banner .sub{font-size:12px;color:var(--ink-soft);font-weight:400;}
 
-  textarea{resize:vertical;min-height:80px;font-family:'Inter';}
+  textarea{resize:vertical;min-height:80px;font-family:'Inter',sans-serif;}
 
   /* Manager view */
   .stat-bar{display:flex;gap:10px;margin-bottom:18px;flex-wrap:wrap;}
   .stat{flex:1;min-width:120px;background:var(--paper-raised);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;box-shadow:var(--shadow);}
-  .stat .num{font-family:'Space Grotesk';font-size:24px;font-weight:700;}
+  .stat .num{font-family:'Space Grotesk',sans-serif;font-size:24px;font-weight:700;}
   .stat .lbl{font-size:12px;color:var(--ink-soft);margin-top:2px;}
   .stat.office .num{color:var(--office);}
   .stat.wfh .num{color:var(--wfh);}
@@ -154,17 +361,17 @@
   .roster-item{border:1px solid var(--line);border-radius:var(--radius);margin-bottom:10px;overflow:hidden;background:var(--paper-raised);}
   .roster-head{display:flex;align-items:center;justify-content:space-between;padding:14px 16px;cursor:pointer;gap:10px;}
   .roster-left{display:flex;align-items:center;gap:12px;}
-  .avatar{width:34px;height:34px;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk';font-weight:600;font-size:13px;flex-shrink:0;}
+  .avatar{width:34px;height:34px;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:13px;flex-shrink:0;}
   .r-name{font-weight:600;font-size:14px;}
   .r-meta{font-size:12px;color:var(--ink-soft);margin-top:1px;}
-  .badge{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:4px 9px;border-radius:999px;}
+  .badge{white-space:nowrap;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:4px 9px;border-radius:999px;}
   .badge.office{background:var(--office-bg);color:var(--office);}
   .badge.wfh{background:var(--wfh-bg);color:var(--wfh);}
   .badge.leave{background:var(--leave-bg);color:var(--leave);}
   .roster-body{padding:0 16px 16px 62px;display:none;border-top:1px solid var(--line-soft);}
   .roster-body.open{display:block;padding-top:12px;}
   .empty-state{text-align:center;padding:50px 20px;color:var(--ink-soft);}
-  .empty-state .big{font-family:'Space Grotesk';font-size:16px;color:var(--ink);margin-bottom:6px;}
+  .empty-state .big{font-family:'Space Grotesk',sans-serif;font-size:16px;color:var(--ink);margin-bottom:6px;}
 
   .toast{
     position:fixed;bottom:24px;left:50%;transform:translateX(-50%) translateY(20px);
@@ -181,13 +388,14 @@
   .ts-month-nav{display:flex;align-items:center;gap:10px;}
   .ts-month-nav button{width:30px;height:30px;border-radius:7px;border:1px solid var(--line);background:var(--paper);cursor:pointer;font-size:14px;color:var(--ink);}
   .ts-month-nav button:hover{border-color:var(--ink-soft);}
-  .ts-month-label{font-family:'Space Grotesk';font-weight:600;font-size:15.5px;min-width:150px;text-align:center;}
+  .ts-month-label{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:15.5px;min-width:150px;text-align:center;}
   .legend{display:flex;gap:14px;flex-wrap:wrap;}
   .legend span{display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--ink-soft);}
   .legend .dot{width:9px;height:9px;border-radius:3px;}
   .dot.office{background:var(--office);} .dot.wfh{background:var(--wfh);} .dot.leave{background:var(--leave);} .dot.none{background:var(--line);}
 
-  .ts-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:6px;margin-top:14px;}
+  .ts-grid{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px;margin-top:14px;}
+  .ts-day{min-width:0;}
   .ts-dow{font-size:11px;font-weight:700;text-transform:uppercase;color:var(--ink-soft);text-align:center;padding-bottom:4px;letter-spacing:.03em;}
   .ts-day{
     aspect-ratio:1/0.85;border-radius:8px;border:1.5px solid var(--line-soft);background:var(--paper);
@@ -195,7 +403,7 @@
     transition:all .12s ease;padding:4px;
   }
   .ts-day.blank{visibility:hidden;cursor:default;}
-  .ts-day .dnum{font-family:'JetBrains Mono';font-size:12.5px;color:var(--ink);}
+  .ts-day .dnum{font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--ink);}
   .ts-day .dchip{width:16px;height:4px;border-radius:2px;}
   .ts-day.office{background:var(--office-bg);border-color:#CFE4D8;}
   .ts-day.office .dchip{background:var(--office);}
@@ -203,24 +411,107 @@
   .ts-day.wfh .dchip{background:var(--wfh);}
   .ts-day.leave{background:var(--leave-bg);border-color:#E9D3B4;}
   .ts-day.leave .dchip{background:var(--leave);}
+
+  /* ---------- Holidays ---------- */
+  .dot.holiday{background:var(--hol);}
+  .ts-day.holiday{background:var(--hol-bg);border-color:#DCCFEC;}
+  .ts-day.holiday .dchip,.dchip.hol{background:var(--hol);}
+  .ts-day.future.holiday{opacity:.92;cursor:pointer;}
+  .ts-day .hol-tag{font-size:9.5px;line-height:1.15;color:var(--hol);font-weight:600;max-width:100%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;padding:0 2px;}
+  .ts-day .hol-mark{position:absolute;top:4px;right:4px;width:7px;height:7px;border-radius:50%;background:var(--hol);}
+  .ts-summary .stat.hol .num{color:var(--hol);}
+  .banner.hol-banner{background:var(--hol-bg);border-color:#D9CCEA;}
+  .banner.hol-banner .msg{color:var(--hol);}
+  .dr-holiday{display:flex;align-items:center;gap:10px;background:var(--hol-bg);border:1px solid #D9CCEA;color:var(--hol);border-radius:10px;padding:10px 12px;margin-bottom:16px;font-size:13px;font-weight:600;}
+  .fill-note{margin-top:14px;padding:12px 14px;border:1px solid #E9D3B4;background:var(--leave-bg);border-radius:10px;font-size:13px;line-height:1.55;display:flex;align-items:center;gap:10px 14px;flex-wrap:wrap;justify-content:space-between;}
+  .fill-note .txt{min-width:0;flex:1 1 240px;}
+  .fill-note .txt span{color:var(--ink-soft);}
+  .fill-note.ok{background:var(--office-bg);border-color:#CFE4D8;color:var(--office);font-weight:600;}
+  .hol-card h2{margin:0;}
+  .hol-help{font-size:13px;color:var(--ink-soft);line-height:1.55;margin:6px 0 16px;}
+  .hol-pick{display:flex;flex-wrap:wrap;gap:10px 14px;align-items:center;}
+  .hol-pick input[type=file]{font:500 13px 'Inter',sans-serif;max-width:100%;}
+  .hol-preview{margin-top:16px;border:1px solid var(--line);border-radius:10px;overflow:hidden;}
+  .hol-preview .ph{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:11px 14px;background:var(--paper);border-bottom:1px solid var(--line);font-size:13px;}
+  .hol-rows{max-height:280px;overflow:auto;}
+  .hol-row{display:grid;grid-template-columns:150px minmax(0,1fr) auto;gap:12px;align-items:center;padding:10px 14px;border-bottom:1px solid var(--line-soft);font-size:13.5px;}
+  .hol-row:last-child{border-bottom:none;}
+  .hol-row .hd{font-family:'JetBrains Mono',monospace;font-size:12.5px;color:var(--ink-soft);}
+  .hol-row .hn{font-weight:600;min-width:0;overflow-wrap:anywhere;}
+  .hol-row.past{opacity:.55;}
+  .hol-row .when{font-size:11.5px;font-weight:700;color:var(--hol);background:var(--hol-bg);border-radius:999px;padding:2px 9px;white-space:nowrap;}
+  .hol-year{font-family:'Space Grotesk',sans-serif;font-size:13px;font-weight:700;color:var(--ink-soft);letter-spacing:.06em;margin:18px 0 6px;}
+  .hol-year:first-of-type{margin-top:6px;}
+  .hol-add{display:grid;grid-template-columns:170px minmax(0,1fr) auto;gap:10px;margin-top:18px;padding-top:16px;border-top:1px solid var(--line-soft);align-items:center;}
+  .hol-err{margin-top:12px;color:var(--danger);font-size:13px;font-weight:600;}
+  @media(max-width:640px){
+    .ts-day .hol-tag{display:none;}
+    .hol-row{grid-template-columns:minmax(0,1fr) auto;}
+    .hol-row .hd{grid-column:1 / -1;}
+    .hol-add{grid-template-columns:1fr;}
+    .hol-add .btn{width:100%;}
+    .hol-pick input[type=file]{width:100%;}
+    .fill-note .btn{width:100%;}
+  }
   .ts-day.future{opacity:.35;cursor:default;}
   .ts-day.today .dnum{font-weight:700;text-decoration:underline;}
   .ts-day.selected{outline:2px solid var(--ink);outline-offset:1px;}
   .ts-day:not(.blank):not(.future):hover{border-color:var(--ink-soft);}
-  .ts-hrs{font-size:9.5px;color:var(--ink-soft);font-family:'JetBrains Mono';}
+  .ts-hrs{font-size:9.5px;color:var(--ink-soft);font-family:'JetBrains Mono',monospace;}
 
   .ts-summary{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;}
   .ts-summary .stat{flex:1;min-width:100px;padding:12px 14px;}
   .ts-summary .stat .num{font-size:20px;}
 
-  .detail-panel{margin-top:16px;padding-top:16px;border-top:1px solid var(--line);}
   .detail-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
-  .detail-head h3{font-family:'Space Grotesk';font-size:15px;margin:0;}
+  .detail-head h3{font-family:'Space Grotesk',sans-serif;font-size:15px;margin:0;}
 
   select#mgr-employee{min-width:200px;}
 
+  /* Tasks */
+  .task-card{border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;margin-bottom:10px;background:var(--paper-raised);}
+  .task-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
+  .task-title{font-weight:600;font-size:14px;color:var(--ink);}
+  .task-title.done{text-decoration:line-through;color:var(--ink-soft);}
+  .task-desc{font-size:13px;color:var(--ink-soft);margin-top:4px;line-height:1.5;}
+  .task-meta{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-top:10px;font-size:12px;color:var(--ink-soft);}
+  .task-due{font-family:'JetBrains Mono',monospace;}
+  .task-due.overdue{color:var(--danger);font-weight:600;}
+  .status-pill{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.03em;padding:4px 10px;border-radius:999px;border:none;cursor:pointer;font-family:'Inter',sans-serif;}
+  .status-pill.todo{background:#EFEDE7;color:var(--ink-soft);}
+  .status-pill.in_progress{background:var(--wfh-bg);color:var(--wfh);}
+  .status-pill.done{background:var(--office-bg);color:var(--office);}
+  .assignee-check{display:flex;align-items:center;gap:8px;padding:8px 10px;border:1px solid var(--line);border-radius:7px;margin-bottom:6px;cursor:pointer;font-size:13.5px;}
+  .assignee-check input{width:15px;height:15px;}
+  .assignee-check.checked{border-color:var(--navy);background:var(--wfh-bg);}
+  .task-empty{text-align:center;padding:40px 20px;color:var(--ink-soft);}
+
+  /* Auth screens */
+  .auth-wrap{max-width:400px;margin:60px auto;text-align:center;}
+  .auth-wrap .icon-badge{width:44px;height:44px;border-radius:12px;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;margin:0 auto 18px;}
+  .auth-wrap h2{font-family:'Space Grotesk',sans-serif;font-size:19px;margin:0 0 8px;}
+  .auth-wrap p{font-size:13.5px;color:var(--ink-soft);line-height:1.5;margin:0 0 22px;}
+  .auth-wrap .card{padding:24px;text-align:left;}
+  .auth-wrap .field{margin-bottom:14px;}
+  .auth-wrap .field label{display:block;margin-bottom:6px;}
+  .auth-wrap input, .auth-wrap select{width:100%;}
+  .role-pick{display:flex;gap:10px;margin-bottom:14px;}
+  .role-pick button{flex:1;padding:12px;border:1.5px solid var(--line);border-radius:8px;background:var(--paper);font-weight:600;font-size:13.5px;cursor:pointer;transition:all .15s;}
+  .role-pick button.active{border-color:var(--navy);background:var(--wfh-bg);color:var(--navy);}
+  .role-pick button:disabled{opacity:.45;cursor:not-allowed;}
+  .signout-row{display:flex;align-items:center;gap:10px;margin-left:10px;}
+  .who-badge{display:flex;align-items:center;gap:8px;font-size:12.5px;color:var(--ink-soft);}
+  .who-badge .dot-av{width:24px;height:24px;border-radius:50%;background:var(--navy);color:#fff;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;font-family:'Space Grotesk',sans-serif;}
+
   @media(max-width:640px){
-    .status-grid{grid-template-columns:1fr;}
+    .status-grid{grid-template-columns:repeat(3,1fr);gap:8px;}
+    .status-card{padding:12px 6px 11px;text-align:center;}
+    .status-card .icon{margin:0 auto 8px;}
+    .status-card .desc{display:none;}
+    .status-card .name{font-size:13.5px;}
+    .status-card .check{top:8px;right:8px;width:13px;height:13px;}
+    .ledger-row input[type=time], .ledger-row input[type=text]{font-size:16px;padding:10px;}
+    .ledger-row .e-hours{padding:11px 2px;}
     .ledger-row{grid-template-columns:1fr 1fr 54px 34px;grid-template-areas:"start end hrs del" "desc desc desc desc";}
     .ledger-row input[type=time]:nth-child(1){grid-area:start;}
     .ledger-row input[type=time]:nth-child(2){grid-area:end;}
@@ -244,24 +535,7 @@ const SUPABASE_URL = 'https://qshxhohyauniilyqiqda.supabase.co';        // e.g. 
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFzaHhob2h5YXVuaWlseXFpcWRhIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODM1NzM0NDYsImV4cCI6MjA5OTE0OTQ0Nn0.lICjIQ4NzKl9GEmzWPWpB2Bb4qYeiXjDrRjqN6S8n6E';  // the long "anon public" key
 
 const SB_READY = SUPABASE_URL.startsWith('https://') && !SUPABASE_ANON_KEY.startsWith('YOUR_');
-
-async function sbFetch(path, options={}){
-  const res = await fetch(SUPABASE_URL + '/rest/v1/' + path, {
-    ...options,
-    headers: {
-      'apikey': SUPABASE_ANON_KEY,
-      'Authorization': 'Bearer ' + SUPABASE_ANON_KEY,
-      'Content-Type': 'application/json',
-      ...(options.headers || {})
-    }
-  });
-  if(!res.ok){
-    const text = await res.text().catch(()=> '');
-    throw new Error('Supabase error ' + res.status + ': ' + text);
-  }
-  const text = await res.text();
-  return text ? JSON.parse(text) : null;
-}
+const sb = (SB_READY && window.supabase) ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
 function rowToReport(row){
   return {
@@ -274,38 +548,145 @@ function rowToReport(row){
   };
 }
 
-/* ---------- Storage helpers ---------- */
-/* Profile (name + manager) lives in this browser only — no login system,
-   so each employee's own device just remembers who they are. */
-async function loadProfile(){
-  try{
-    const raw = localStorage.getItem('daybook_profile');
-    if(raw) state.profile = JSON.parse(raw);
-  }catch(e){}
-  state.loadedProfile = true;
-}
-async function saveProfile(){
-  try{ localStorage.setItem('daybook_profile', JSON.stringify(state.profile)); }
-  catch(e){ console.error('profile save failed', e); }
+/* ---------- Auth state machine ----------
+   screen: loading | login | sent | setup-profile | app
+   Every login/logout/profile-save event re-decides the screen and repaints. */
+const auth = {
+  session: null,
+  profile: null,     // row from the `profiles` table
+  screen: 'loading',
+  lastEmail: '',
+  canBeManager: false, // is this email on the manager_emails allowlist?
+  managers: [],       // [{id, full_name}] — everyone currently registered as a Manager
+};
+
+async function initAuth(){
+  if(!sb){ auth.screen = 'login'; paint(); return; }
+  const { data:{ session } } = await sb.auth.getSession();
+  await handleSession(session);
+  sb.auth.onAuthStateChange((_event, session)=>{ handleSession(session); });
 }
 
-/* Daily reports live in the shared Supabase database, so every employee
-   and the manager see the same live data from any device. */
-async function loadDayReports(date){
-  if(!SB_READY) return {};
+async function checkManagerEligibility(){
+  auth.canBeManager = false;
+  if(!sb || !auth.session) return;
   try{
-    const rows = await sbFetch(`daily_reports?report_date=eq.${date}&select=*`);
+    const email = auth.session.user.email;
+    const { data } = await sb.from('manager_emails').select('email').ilike('email', email).maybeSingle();
+    auth.canBeManager = !!data;
+  }catch(e){ auth.canBeManager = false; }
+}
+
+async function loadManagersList(){
+  if(!sb) { auth.managers = []; return; }
+  try{
+    const { data, error } = await sb.from('profiles').select('id, full_name').eq('role','manager').order('full_name');
+    if(error) throw error;
+    auth.managers = data || [];
+  }catch(e){ console.error(e); auth.managers = []; }
+}
+
+function managerNameById(id){
+  const m = auth.managers.find(x=>x.id===id);
+  return m ? m.full_name : '';
+}
+
+async function handleSession(session){
+  auth.session = session;
+  if(!session){
+    auth.profile = null;
+    auth.screen = 'login';
+    state._modeInit = false;
+    state.role = 'home';
+    paint();
+    return;
+  }
+  await loadManagersList();
+  const { data, error } = await sb.from('profiles').select('*').eq('id', session.user.id).maybeSingle();
+  if(error) console.error(error);
+  auth.profile = data || null;
+  if(!auth.profile){
+    await checkManagerEligibility();
+    auth.screen = 'setup-profile';
+  } else {
+    state.profile = {
+      name: auth.profile.full_name,
+      managerId: auth.profile.reports_to || '',
+      managerName: managerNameById(auth.profile.reports_to)
+    };
+    if(!state._modeInit){ state.mode = auth.profile.role === 'manager' ? 'manager' : 'employee'; state._modeInit = true; }
+    auth.screen = 'app';
+  }
+  paint();
+}
+
+async function sendMagicLink(email){
+  if(!sb){ showToast('Database not set up yet — see DEPLOY_GUIDE.md'); return; }
+  if(!email || !email.includes('@')){ showToast('Enter a valid email address'); return; }
+  const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } });
+  if(error){ showToast(error.message); return; }
+  auth.lastEmail = email;
+  auth.screen = 'sent';
+  paint();
+}
+
+async function completeProfile(fullName, role, managerId){
+  if(!sb || !auth.session) return;
+  if(!fullName.trim()){ showToast('Please enter your name'); return; }
+  if(role==='manager' && !auth.canBeManager){
+    showToast('Your email isn\'t approved for manager access — ask your admin to add it');
+    return;
+  }
+  if(role==='employee' && !managerId){ showToast('Please select your reporting manager'); return; }
+  const payload = {
+    id: auth.session.user.id,
+    email: auth.session.user.email,
+    full_name: fullName.trim(),
+    role,
+    reports_to: managerId || null
+  };
+  const { error } = await sb.from('profiles').insert(payload);
+  if(error){ showToast('Could not save profile — ' + error.message); return; }
+  auth.profile = payload;
+  if(role==='manager') await loadManagersList(); // so this new manager appears in everyone's dropdown
+  state.profile = { name: payload.full_name, managerId: payload.reports_to || '', managerName: managerNameById(payload.reports_to) };
+  state.mode = role === 'manager' ? 'manager' : 'employee'; state._modeInit = true; state.role = 'home';
+  auth.screen = 'app';
+  paint();
+}
+
+async function updateManagerSelection(managerId){
+  if(!sb || !auth.session) return;
+  state.profile.managerId = managerId;
+  state.profile.managerName = managerNameById(managerId);
+  auth.profile.reports_to = managerId || null;
+  await sb.from('profiles').update({ reports_to: managerId || null }).eq('id', auth.session.user.id);
+}
+
+async function signOut(){
+  if(sb) await sb.auth.signOut();
+}
+
+/* ---------- Reports (shared, live database, protected by row-level
+   security so a signed-in user can only insert/update their own rows) ---------- */
+async function loadDayReports(date){
+  if(!sb) return {};
+  try{
+    const { data, error } = await sb.from('daily_reports').select('*').eq('report_date', date);
+    if(error) throw error;
     const map = {};
-    (rows || []).forEach(r=>{ map[r.employee_name] = rowToReport(r); });
+    (data || []).forEach(r=>{ map[r.employee_name] = rowToReport(r); });
     return map;
   }catch(e){ console.error(e); showToast('Could not load reports — check your connection'); return {}; }
 }
 
 async function saveDayReports(date, obj){
-  if(!SB_READY){ showToast('Database not set up yet — see DEPLOY_GUIDE.md'); return; }
+  if(!sb || !auth.session){ showToast('Please sign in first'); return; }
   const rep = obj[state.profile.name];
   const payload = {
+    employee_id: auth.session.user.id,
     employee_name: state.profile.name,
+    manager_id: state.profile.managerId || null,
     manager_name: rep.managerName || null,
     report_date: date,
     status: rep.status,
@@ -315,37 +696,112 @@ async function saveDayReports(date, obj){
     submitted_at: rep.submittedAt
   };
   try{
-    await sbFetch('daily_reports?on_conflict=employee_name,report_date', {
-      method: 'POST',
-      headers: { 'Prefer': 'resolution=merge-duplicates' },
-      body: JSON.stringify(payload)
-    });
-  }catch(e){ console.error(e); showToast('Could not save — check your connection'); }
+    const { error } = await sb.from('daily_reports').upsert(payload, { onConflict: 'employee_id,report_date' });
+    if(error) throw error;
+  }catch(e){ console.error(e); showToast('Could not save — ' + (e.message || 'check your connection')); }
 }
 
 async function registerMember(name){
-  // No-op — employee names are simply read back from the reports table
-  // (see loadTeamMembers), so there's no separate list to keep in sync.
+  // No-op — employee names now come from the `profiles` table (see
+  // loadTeamMembers), created automatically when someone signs in.
 }
 
 async function loadTeamMembers(){
-  if(!SB_READY) return [];
+  if(!sb || !auth.session) return [];
   try{
-    const rows = await sbFetch('daily_reports?select=employee_name');
-    const names = [...new Set((rows || []).map(r=>r.employee_name))];
-    return names.sort((a,b)=>a.localeCompare(b));
+    const { data, error } = await sb.from('profiles').select('full_name').eq('reports_to', auth.session.user.id);
+    if(error) throw error;
+    return [...new Set((data || []).map(r=>r.full_name))].sort((a,b)=>a.localeCompare(b));
   }catch(e){ console.error(e); return []; }
 }
 
+async function loadTeamMembersFull(){
+  if(!sb || !auth.session) return [];
+  try{
+    const { data, error } = await sb.from('profiles').select('id, full_name').eq('reports_to', auth.session.user.id).order('full_name');
+    if(error) throw error;
+    return data || [];
+  }catch(e){ console.error(e); return []; }
+}
+
+/* ---------- Tasks ---------- */
+function rowToTask(row){
+  return {
+    id: row.id,
+    title: row.title,
+    description: row.description || '',
+    dueDate: row.due_date,
+    status: row.status,
+    employeeId: row.employee_id,
+    employeeName: row.employee_name,
+    managerId: row.manager_id,
+    createdAt: row.created_at
+  };
+}
+
+async function loadMyTasks(){
+  if(!sb || !auth.session) return [];
+  try{
+    const { data, error } = await sb.from('tasks').select('*').eq('employee_id', auth.session.user.id).order('due_date', { ascending: true, nullsFirst: false });
+    if(error) throw error;
+    return (data || []).map(rowToTask);
+  }catch(e){ console.error(e); showToast('Could not load tasks'); return []; }
+}
+
+async function loadAssignedTasks(){
+  if(!sb || !auth.session) return [];
+  try{
+    const { data, error } = await sb.from('tasks').select('*').eq('manager_id', auth.session.user.id).order('created_at', { ascending: false });
+    if(error) throw error;
+    return (data || []).map(rowToTask);
+  }catch(e){ console.error(e); showToast('Could not load tasks'); return []; }
+}
+
+async function createTasks(employeeIds, title, description, dueDate){
+  if(!sb || !auth.session) return false;
+  const rows = employeeIds.map(empId=>{
+    const emp = state.assignableEmployees.find(e=>e.id===empId);
+    return {
+      manager_id: auth.session.user.id,
+      employee_id: empId,
+      employee_name: emp ? emp.full_name : '',
+      title: title.trim(),
+      description: description.trim() || null,
+      due_date: dueDate || null,
+      status: 'todo'
+    };
+  });
+  try{
+    const { error } = await sb.from('tasks').insert(rows);
+    if(error) throw error;
+    return true;
+  }catch(e){ console.error(e); showToast('Could not assign task — ' + (e.message || '')); return false; }
+}
+
+async function updateTaskStatus(taskId, status){
+  if(!sb) return;
+  try{
+    await sb.from('tasks').update({ status, updated_at: new Date().toISOString() }).eq('id', taskId);
+  }catch(e){ console.error(e); showToast('Could not update task'); }
+}
+
+async function deleteTask(taskId){
+  if(!sb) return;
+  try{
+    await sb.from('tasks').delete().eq('id', taskId);
+  }catch(e){ console.error(e); showToast('Could not delete task'); }
+}
+
 async function loadMonthReportsAll(yearMonth){
-  if(!SB_READY) return {};
+  if(!sb) return {};
   const [y,m] = yearMonth.split('-').map(Number);
   const first = yearMonth + '-01';
   const last = yearMonth + '-' + String(new Date(y, m, 0).getDate()).padStart(2,'0');
   try{
-    const rows = await sbFetch(`daily_reports?report_date=gte.${first}&report_date=lte.${last}&select=*`);
+    const { data, error } = await sb.from('daily_reports').select('*').gte('report_date', first).lte('report_date', last);
+    if(error) throw error;
     const map = {};
-    (rows || []).forEach(r=>{
+    (data || []).forEach(r=>{
       if(!map[r.report_date]) map[r.report_date] = {};
       map[r.report_date][r.employee_name] = rowToReport(r);
     });
@@ -353,11 +809,39 @@ async function loadMonthReportsAll(yearMonth){
   }catch(e){ console.error(e); return {}; }
 }
 
+/* ---------- Holidays ---------- */
+async function loadHolidays(){
+  if(!sb) return {};
+  try{
+    const { data, error } = await sb.from('holidays').select('holiday_date,name');
+    if(error) throw error;
+    const m = {};
+    (data || []).forEach(r=>{ m[r.holiday_date] = r.name; });
+    return m;
+  }catch(e){ console.error(e); return {}; }
+}
+async function saveHolidays(rows){
+  if(!sb) return false;
+  try{
+    const { error } = await sb.from('holidays').upsert(
+      rows.map(r=>({ holiday_date: r.date, name: r.name })), { onConflict: 'holiday_date' });
+    if(error) throw error;
+    return true;
+  }catch(e){ console.error(e); showToast('Could not save holidays — only managers can, and HOLIDAYS_SQL.sql must be run once'); return false; }
+}
+async function deleteHoliday(iso){
+  if(!sb) return;
+  try{ await sb.from('holidays').delete().eq('holiday_date', iso); }
+  catch(e){ console.error(e); showToast('Could not delete holiday'); }
+}
+
 /* ---------- State ---------- */
 const state = {
-  role: 'employee', // employee | manager
+  role: 'home', // current page: home | employee | timesheet | tasks | roster | mgrts | assign
+  mode: 'employee', // employee | manager (managers can switch between the two)
+  counts: { tasks: null, awaiting: null }, // sidebar badges, filled in as pages load
   date: todayISO(),
-  profile: { name: '', managerName: '' },
+  profile: { name: '', managerId: '', managerName: '' },
   loadedProfile: false,
   draft: { status: 'office', entries: [], leaveType: 'Full day', leaveReason: '' },
   todaysReport: null, // existing submitted report for date+name
@@ -375,6 +859,19 @@ const state = {
   mgrMonth: currentMonthKey(),
   mgrEmployee: '',
   teamMembers: [],
+
+  // Tasks
+  taskSubMode: 'mine', // mine | assign
+  myTasks: [],
+  assignedTasks: [],
+  taskFilter: 'all', // all | todo | in_progress | done
+  assignableEmployees: [], // [{id, full_name}] — this manager's direct reports
+  taskDraft: { employeeIds: [], title: '', description: '', dueDate: '' },
+
+  // Holidays
+  holidays: {}, // { 'YYYY-MM-DD': 'Name' }
+  holidaysLoaded: false,
+  hol: { rows: [], skipped: 0, file: '', error: '' }, // import preview
 };
 
 function currentMonthKey(){
@@ -401,6 +898,39 @@ function showToast(msg){
   t.classList.add('show');
   clearTimeout(showToast._tm);
   showToast._tm = setTimeout(()=>t.classList.remove('show'), 2600);
+}
+
+/* ---------- Holiday helpers ---------- */
+// Working week used for "days left to fill". 0=Sun … 6=Sat. Add 6 if your team works Saturdays.
+const WORK_DAYS = [1,2,3,4,5];
+async function refreshHolidays(){ state.holidays = await loadHolidays(); state.holidaysLoaded = true; }
+function holidayOn(iso){ return state.holidays[iso] || null; }
+function isWorkDay(iso){
+  return WORK_DAYS.includes(new Date(iso+'T00:00:00').getDay()) && !state.holidays[iso];
+}
+function monthHolidayCount(yearMonth){
+  return Object.keys(state.holidays).filter(d=>d.startsWith(yearMonth)).length;
+}
+// working days before today with no report from this person
+function pendingDays(yearMonth, employeeName, monthData){
+  const today = todayISO(), out = [];
+  for(let day=1; day<=daysInMonth(yearMonth); day++){
+    const iso = isoOf(yearMonth, day);
+    if(iso >= today) break;
+    if(isWorkDay(iso) && !(monthData[iso]||{})[employeeName]) out.push(iso);
+  }
+  return out;
+}
+function holidayBanner(iso, forManager){
+  const name = holidayOn(iso);
+  if(!name) return '';
+  return `
+  <div class="banner hol-banner">
+    <div>
+      <div class="msg">Public holiday — ${esc(name)}</div>
+      <div class="sub">${forManager ? 'No reports are expected on this day.' : 'No report needed for ' + fmtDate(iso) + '. If you worked anyway, you can still submit one below.'}</div>
+    </div>
+  </div>`;
 }
 
 function timeToHours(t){
@@ -455,13 +985,18 @@ function calendarGrid(yearMonth, employeeName, monthData, selectedDate){
     const rep = (monthData[iso] || {})[employeeName];
     const future = iso > today;
     const status = rep ? rep.status : 'none';
-    const classes = ['ts-day', status!=='none'?status:'', future?'future':'', iso===today?'today':'', iso===selectedDate?'selected':''].filter(Boolean).join(' ');
+    const hol = state.holidays[iso] || null;
+    const clickable = !future || !!hol;
+    const classes = ['ts-day', status!=='none'?status:'', (hol && !rep)?'holiday':'', future?'future':'', iso===today?'today':'', iso===selectedDate?'selected':''].filter(Boolean).join(' ');
     const hrs = rep && rep.status!=='leave' ? reportHours(rep) : 0;
+    const label = fmtDate(iso) + (hol ? ', holiday: '+hol : '') + (rep ? ', '+statusLabel(rep.status) : (hol ? '' : ', no report'));
     cells += `
-      <div class="${classes}" data-iso="${future?'':iso}">
+      <div class="${classes}" data-iso="${clickable?iso:''}" ${hol?`title="${esc(hol)}"`:''} ${clickable?`tabindex="0" role="button" aria-label="${esc(label)}"`:''}>
         <div class="dnum">${day}</div>
-        ${status!=='none' ? `<div class="dchip"></div>` : ''}
+        ${status!=='none' ? `<div class="dchip"></div>` : (hol ? `<div class="dchip hol"></div>` : '')}
         ${hrs>0 ? `<div class="ts-hrs">${fmtHours(hrs)}h</div>` : ''}
+        ${hol && !rep ? `<div class="hol-tag">${esc(hol)}</div>` : ''}
+        ${hol && rep ? `<span class="hol-mark"></span>` : ''}
       </div>`;
   }
   return `<div class="ts-grid">${cells}</div>`;
@@ -480,25 +1015,92 @@ function monthSummary(employeeName, monthData){
   return {office, wfh, leave, hours, total: office+wfh+leave};
 }
 
-function dayDetailHTML(iso, report){
-  if(!report){
-    return `<div class="hint" style="margin-top:0;">No report submitted for ${fmtDate(iso)}.</div>`;
+function dayDrawerHTML(iso, report, opts){
+  opts = opts || {};
+  const own = !!opts.own;
+  const d = new Date(iso+'T00:00:00');
+  const longDate = d.toLocaleDateString('en-US',{weekday:'long', month:'long', day:'numeric'});
+  const enter = state._drawerEnter; state._drawerEnter = false;
+  const canFill = own && iso <= todayISO();
+
+  const hol = holidayOn(iso);
+  let body = '';
+  if(!report && hol){
+    body = `
+      <div class="dr-empty">
+        ${ico('sun',34)}
+        <div class="big">${esc(hol)}</div>
+        <div>Public holiday — no report is needed${own ? '. If you worked anyway you can still add one.' : '.'}</div>
+      </div>`;
+  } else if(!report){
+    body = `
+      <div class="dr-empty">
+        ${ico('calendar',34)}
+        <div class="big">No report for this day</div>
+        <div>${own ? 'Nothing was submitted on ' : 'Nothing was submitted by ' + esc(opts.who||'this person') + ' on '}${fmtDate(iso)}.</div>
+      </div>`;
+  } else if(report.status === 'leave'){
+    body = `
+      <div class="drawer-summary">
+        <span class="badge leave">Leave</span>
+        <span class="mono">${esc(report.leaveType||'')}</span>
+      </div>
+      <div class="drawer-label">Reason</div>
+      <div class="dr-quote">${esc(report.leaveReason||'No reason given.')}</div>`;
+  } else {
+    const entries = report.entries || [];
+    body = `
+      <div class="drawer-summary">
+        <span class="badge ${report.status}">${statusLabel(report.status)}</span>
+        <div class="drawer-hours">${fmtHours(reportHours(report))}<small>hours logged</small></div>
+      </div>
+      <div class="drawer-label">Work log · ${entries.length} ${entries.length===1?'entry':'entries'}</div>
+      ${entries.map(e=>`
+        <div class="dr-entry">
+          <span class="dr-time">${esc(e.start)}–${esc(e.end)}</span>
+          <span class="dr-desc">${esc(e.description)}</span>
+          <span class="dr-dur">${fmtHours(entryHours(e))}h</span>
+        </div>`).join('') || '<div class="hint">No entries logged.</div>'}`;
   }
-  if(report.status==='leave'){
-    return `
-      <span class="badge leave">${esc(report.leaveType||'Leave')}</span>
-      <p style="font-size:13.5px;line-height:1.6;margin-top:10px;">${esc(report.leaveReason||'')}</p>`;
+  if(report && hol){
+    body = `<div class="dr-holiday">${ico('sun',16)}<span>Public holiday — ${esc(hol)}</span></div>` + body;
   }
+  if(report && report.submittedAt){
+    const t = new Date(report.submittedAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+    body += `<div class="dr-meta">Submitted${report.managerName ? ' to ' + esc(report.managerName) : ''} at ${t}</div>`;
+  }
+
   return `
-    <span class="badge ${report.status}">${statusLabel(report.status)}</span>
-    <div class="timeline" style="margin-top:10px;">
-      ${(report.entries||[]).map(e=>`
-        <div class="tl-item">
-          <div class="tl-time">${esc(e.start)}–${esc(e.end)}</div>
-          <div class="tl-desc">${esc(e.description)}</div>
-        </div>`).join('') || '<div class="hint">No entries logged.</div>'}
-    </div>`;
+  <div class="drawer-layer ${enter?'enter':''}" id="drawer-layer">
+    <div class="drawer-scrim" id="drawer-scrim"></div>
+    <aside class="drawer" role="dialog" aria-modal="true" aria-label="Details for ${fmtDate(iso)}">
+      <header class="drawer-head">
+        <div>
+          <div class="drawer-eyebrow">${hol ? 'Holiday · ' : ''}${own ? 'Your day' : esc(opts.who||'')}</div>
+          <h3 class="drawer-title">${longDate}</h3>
+        </div>
+        <button class="drawer-close" id="drawer-close" aria-label="Close details">${ico('close',16)}</button>
+      </header>
+      <div class="drawer-body">${body}</div>
+      <footer class="drawer-foot">
+        <button class="btn btn-ghost" id="drawer-close-2">Close</button>
+        ${own && (report || canFill) ? `<button class="btn btn-primary" id="ts-edit-day">${report ? 'Edit this day' : (hol ? 'I worked this day' : 'Fill in this day')}</button>` : ''}
+      </footer>
+    </aside>
+  </div>`;
 }
+
+function closeDrawer(){
+  const layer = document.getElementById('drawer-layer');
+  if(!layer){ state.tsSelected = null; return; }
+  if(layer.classList.contains('leaving')) return;
+  layer.classList.remove('enter');
+  layer.classList.add('leaving');
+  setTimeout(()=>{ state.tsSelected = null; render(); }, 190);
+}
+document.addEventListener('keydown', e=>{
+  if(e.key === 'Escape' && document.getElementById('drawer-layer')) closeDrawer();
+});
 
 function downloadCSV(filename, rows){
   const csv = rows.map(r=>r.map(cell=>{
@@ -520,7 +1122,7 @@ function exportEmployeeMonthCSV(employeeName, yearMonth, monthData){
     const iso = isoOf(yearMonth, day);
     const rep = (monthData[iso] || {})[employeeName];
     const dow = new Date(iso+'T00:00:00').toLocaleDateString('en-US',{weekday:'short'});
-    if(!rep){ rows.push([iso, dow, '', '', '']); continue; }
+    if(!rep){ const h = state.holidays[iso]; rows.push([iso, dow, h?'Holiday':'', '', h||'']); continue; }
     if(rep.status==='leave'){
       rows.push([iso, dow, statusLabel(rep.status), '', (rep.leaveType||'')+' — '+(rep.leaveReason||'')]);
     } else {
@@ -534,6 +1136,7 @@ function exportEmployeeMonthCSV(employeeName, yearMonth, monthData){
   rows.push(['In-Office days', s.office]);
   rows.push(['WFH days', s.wfh]);
   rows.push(['Leave days', s.leave]);
+  rows.push(['Public holidays', monthHolidayCount(yearMonth)]);
   rows.push(['Total hours logged', fmtHours(s.hours)]);
   downloadCSV(`${employeeName.replace(/\s+/g,'_')}_timesheet_${yearMonth}.csv`, rows);
 }
@@ -547,92 +1150,476 @@ function exportTeamMonthCSV(yearMonth, monthData, members){
   downloadCSV(`team_timesheet_${yearMonth}.csv`, rows);
 }
 
-/* ---------- Render root ---------- */
-async function render(){
-  const app = document.getElementById('app');
-  let body;
-  if(state.role==='employee') body = await employeeView();
-  else if(state.role==='timesheet') body = await timesheetView();
-  else body = await managerRoot();
-  app.innerHTML = header() + body;
-  bindEvents();
+/* ---------- Navigation model ---------- */
+const NAV_MY = [
+  { key:'home',      label:'Home',          icon:'home' },
+  { key:'employee',  label:'Daily Entry',   icon:'edit' },
+  { key:'timesheet', label:'My Timesheet',  icon:'calendar' },
+  { key:'tasks',     label:'My Tasks',      icon:'check' },
+  { key:'holidays',  label:'Holidays',      icon:'sun' },
+];
+const NAV_TEAM = [
+  { key:'roster', label:"Today's Roster",       icon:'users' },
+  { key:'mgrts',  label:'Employee Timesheets',  icon:'table' },
+  { key:'assign', label:'Assign & Track',       icon:'assign' },
+];
+const TEAM_PAGES = NAV_TEAM.map(n=>n.key);
+
+function ico(name, size){
+  size = size || 18;
+  const p = {
+    home:     '<path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9.5h13V10"/><path d="M10 19.5v-5h4v5"/>',
+    edit:     '<path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/>',
+    sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+    calendar: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>',
+    check:    '<path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/>',
+    users:    '<path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/>',
+    table:    '<rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18M3 15h18M9 3v18"/>',
+    assign:   '<path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1"/><path d="M12 11v6M9 14h6"/>',
+    logout:   '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/>',
+    menu:     '<path d="M3 6h18M3 12h18M3 18h18"/>',
+    close:    '<path d="M6 6l12 12M18 6L6 18"/>',
+    user:     '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+    briefcase:'<rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/>',
+    office:   '<rect x="2" y="6" width="12" height="8" rx="1"/><path d="M5 6V3a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v3"/>',
+    wfh:      '<path d="M2 8L8 2l6 6"/><path d="M3.5 7v6a1 1 0 0 0 1 1h7a1 1 0 0 0 1-1V7"/>',
+    leave:    '<rect x="2" y="3" width="12" height="11" rx="1.5"/><path d="M2 6.5H14M5 1.5V4M11 1.5V4"/>',
+  }[name] || '';
+  const vb = (name==='office'||name==='wfh'||name==='leave') ? '0 0 16 16' : '0 0 24 24';
+  return `<svg width="${size}" height="${size}" viewBox="${vb}" fill="none" stroke="currentColor" stroke-width="${vb==='0 0 16 16'?1.4:1.7}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${p}</svg>`;
+}
+
+function isManagerUser(){ return !!(auth.profile && auth.profile.role === 'manager'); }
+function inManagerMode(){ return isManagerUser() && state.mode === 'manager'; }
+
+function greeting(){
+  const h = new Date().getHours();
+  return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+}
+function firstName(){ return (state.profile.name||'').trim().split(/\s+/)[0] || 'there'; }
+
+function pageMeta(key){
+  const mgr = state.profile.managerName;
+  const meta = {
+    home:      { title:'Home', sub: greeting() + ', ' + firstName() + '. Here’s where things stand today.' },
+    employee:  { title:'Daily Entry', sub: mgr ? 'Log your status and work — it goes to ' + mgr + '.' : 'Log your status and the work you did.' },
+    timesheet: { title:'My Timesheet', sub:'Your month at a glance. Select any day to open its details.' },
+    holidays:  { title:'Holidays', sub:'Company holidays are pre-filled on every calendar — you only fill in the remaining days.' },
+    tasks:     { title:'My Tasks', sub:'Everything assigned to you, with due dates and status.' },
+    roster:    { title:"Today's Roster", sub:'Who is in, remote or away — and who hasn’t reported yet.' },
+    mgrts:     { title:'Employee Timesheets', sub:'Pick a person and a month. Export one person or the whole team.' },
+    assign:    { title:'Assign & Track', sub:'Hand out tasks to your team and follow their progress.' },
+  };
+  return meta[key] || meta.home;
+}
+
+function navItem(n){
+  const active = state.role === n.key ? 'active' : '';
+  let badge = '';
+  if(n.key==='tasks' && state.counts.tasks > 0) badge = `<span class="nav-badge soft">${state.counts.tasks}</span>`;
+  if(n.key==='roster' && state.counts.awaiting > 0) badge = `<span class="nav-badge" title="Haven't reported yet">${state.counts.awaiting}</span>`;
+  return `<button class="nav-item ${active}" data-nav="${n.key}">${ico(n.icon)}<span>${n.label}</span>${badge}</button>`;
+}
+
+function sidebarHTML(){
+  const mgrUser = isManagerUser();
+  const mgrMode = inManagerMode();
+  const roleLabel = mgrUser ? 'Manager' : 'Employee';
+  const sub = state.profile.managerName ? 'Reports to ' + state.profile.managerName : roleLabel;
+  return `
+  <aside class="sidebar">
+    <div class="sb-brand">
+      <svg width="30" height="30" viewBox="0 0 26 26" fill="none">
+        <rect x="2" y="3" width="22" height="20" rx="3" stroke="#E7EFED" stroke-width="1.6"/>
+        <path d="M2 9H24" stroke="#E7EFED" stroke-width="1.6"/>
+        <circle cx="8" cy="6" r="0.9" fill="#E7EFED"/><circle cx="18" cy="6" r="0.9" fill="#E7EFED"/>
+        <path d="M6.5 14H11.5M6.5 18H15" stroke="#7FD1A2" stroke-width="1.5" stroke-linecap="round"/>
+      </svg>
+      <div><div class="name">Daybook</div><div class="sub">Daily reports &amp; timesheets</div></div>
+    </div>
+
+    ${mgrUser ? `
+    <div class="mode-box">
+      <div class="mode-label">Viewing as</div>
+      <div class="mode-seg" role="group" aria-label="Switch view">
+        <button data-mode="employee" class="${!mgrMode?'active':''}">${ico('user',15)}Employee</button>
+        <button data-mode="manager" class="${mgrMode?'active':''}">${ico('briefcase',15)}Manager</button>
+      </div>
+      <div class="mode-hint">${mgrMode
+        ? 'Your own work <strong style="color:#fff;font-weight:600;">plus</strong> your team’s reports, timesheets and tasks.'
+        : 'Just your own work — exactly what an employee sees. Switch back anytime.'}</div>
+    </div>` : ''}
+
+    <nav>
+      <div class="nav-group">
+        ${mgrMode ? `<div class="nav-title">My work</div>` : ''}
+        ${NAV_MY.map(navItem).join('')}
+      </div>
+      ${mgrMode ? `
+      <div class="nav-group">
+        <div class="nav-title">My team</div>
+        ${NAV_TEAM.map(navItem).join('')}
+      </div>` : ''}
+    </nav>
+
+    <div class="sb-user">
+      <div class="sb-av">${esc(initials(state.profile.name))}</div>
+      <div class="who"><div class="nm">${esc(state.profile.name)}</div><div class="rl">${esc(sub)}</div></div>
+      <button class="sb-signout" id="sign-out" title="Sign out" aria-label="Sign out">${ico('logout',16)}</button>
+    </div>
+  </aside>`;
+}
+
+function shell(body){
+  const meta = pageMeta(state.role);
+  const mgrUser = isManagerUser();
+  const mgrMode = inManagerMode();
+  const pill = mgrUser
+    ? `<span class="mode-pill ${mgrMode?'manager':'employee'}">${ico(mgrMode?'briefcase':'user',13)}${mgrMode?'Manager view':'Employee view'}</span>`
+    : '';
+  const d = new Date().toLocaleDateString('en-US',{weekday:'short', month:'short', day:'numeric', year:'numeric'});
+  return `
+  <div class="shell" id="shell">
+    <div class="scrim" id="scrim"></div>
+    ${sidebarHTML()}
+    <div class="main">
+      <div class="m-bar">
+        <button class="burger" id="burger" aria-label="Open menu">${ico('menu',20)}</button>
+        <span class="mb-name">Daybook</span>
+        ${pill}
+      </div>
+      <div class="main-inner">
+        ${setupBanner()}
+        <div class="page-head">
+          <div>
+            <h1 class="page-title">${meta.title}</h1>
+            <p class="page-sub">${meta.sub}</p>
+          </div>
+          <div class="head-meta">${pill}<span class="head-date">${d}</span></div>
+        </div>
+        ${body}
+      </div>
+    </div>
+  </div>`;
 }
 
 function setupBanner(){
+  if(typeof DEMO_MODE !== 'undefined' && DEMO_MODE){
+    return `<div class="demo-strip"><strong>Demo</strong> — sample data only, nothing is saved. Refresh the page to reset.</div>`;
+  }
   if(SB_READY) return '';
   return `
-  <div class="card section" style="background:#FCEFE3;border-color:#EAC190;padding:14px 20px;margin-bottom:16px;">
-    <div style="font-weight:700;font-size:13.5px;margin-bottom:3px;">⚠️ Database not connected yet</div>
+  <div class="card section" style="background:#FCEFE3;border-color:#EAC190;padding:14px 20px;margin:18px 0 0;">
+    <div style="font-weight:700;font-size:13.5px;margin-bottom:3px;">Database not connected yet</div>
     <div style="font-size:12.5px;color:var(--ink-soft);line-height:1.5;">
       Reports won't save until this is set up. Open this file, find <code>SUPABASE_URL</code> and
       <code>SUPABASE_ANON_KEY</code> near the top of the code, and paste in your project's values —
-      see DEPLOY_GUIDE.md for the exact steps.
+      see FULL_LIVE_GUIDE.md for the exact steps.
     </div>
   </div>`;
 }
 
-function header(){
+/* ---------- Render root ---------- */
+async function render(){
+  const app = document.getElementById('app');
+  if(!isManagerUser()) state.mode = 'employee';
+  const teamAllowed = inManagerMode();
+  let k = state.role;
+  if(TEAM_PAGES.includes(k) && !teamAllowed) k = state.role = 'home';
+
+  if(!state.holidaysLoaded) await refreshHolidays();
+  let body;
+  if(k==='employee') body = await employeeView();
+  else if(k==='timesheet') body = await timesheetView();
+  else if(k==='tasks') body = await myTasksView();
+  else if(k==='holidays') body = await holidaysView();
+  else if(k==='roster') body = await managerRosterView();
+  else if(k==='mgrts') body = await managerTimesheetView();
+  else if(k==='assign') body = await assignTasksView();
+  else { state.role = 'home'; body = await homeView(); }
+
+  app.innerHTML = shell(body);
+  bindEvents();
+  const layer = document.getElementById('drawer-layer');
+  document.body.classList.toggle('drawer-open', !!layer);
+  if(layer && layer.classList.contains('enter')){
+    const c = document.getElementById('drawer-close');
+    if(c) c.focus({ preventScroll:true });
+  }
+}
+
+/* ---------- Home ---------- */
+function taskDueLabel(t){
+  if(!t.dueDate) return 'No due date';
+  return (isOverdue(t.dueDate, t.status) ? 'Overdue · ' : 'Due ') + fmtDate(t.dueDate);
+}
+
+async function homeView(){
+  const today = todayISO();
+  const teamView = inManagerMode();
+  const [todayReports, monthData, myTasks] = await Promise.all([
+    loadDayReports(today), loadMonthReportsAll(currentMonthKey()), loadMyTasks()
+  ]);
+  const mine = todayReports[state.profile.name] || null;
+  const s = monthSummary(state.profile.name, monthData);
+  const open = myTasks.filter(t=>t.status!=='done')
+    .sort((a,b)=> (a.dueDate||'9999') < (b.dueDate||'9999') ? -1 : 1);
+  const overdue = open.filter(t=>isOverdue(t.dueDate, t.status));
+  state.counts.tasks = open.length;
+
+  const mgrName = state.profile.managerName;
+  const holToday = holidayOn(today);
+  const holidayCard = `
+    <div class="card section">
+      <div class="eyebrow">Today · ${fmtDate(today)}</div>
+      <div class="today-title">Today is a public holiday</div>
+      <div class="today-line"><span class="badge" style="background:var(--hol-bg);color:var(--hol);">${esc(holToday||'')}</span></div>
+      <p class="today-sub">No report needed. Enjoy the day — if you worked anyway, you can still add one.</p>
+      <button class="btn btn-ghost" data-goto="employee">I worked today — report anyway</button>
+    </div>`;
+  const todayCard = (!mine && holToday) ? holidayCard : mine ? `
+    <div class="card section">
+      <div class="eyebrow">Today · ${fmtDate(today)}</div>
+      <div class="today-line">
+        <span class="badge ${mine.status}">${statusLabel(mine.status)}</span>
+        ${mine.status!=='leave' ? `<span class="mono">${fmtHours(reportHours(mine))}h logged</span>` : `<span class="mono">${esc(mine.leaveType||'')}</span>`}
+      </div>
+      <p class="today-sub">Submitted${mgrName?' to '+esc(mgrName):''} at ${new Date(mine.submittedAt).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}. You can still edit it today.</p>
+      <button class="btn btn-ghost" data-goto="employee">View or edit report</button>
+    </div>` : `
+    <div class="card section">
+      <div class="eyebrow">Today · ${fmtDate(today)}</div>
+      <div class="today-title">You haven’t reported yet</div>
+      <p class="today-sub">Pick where you’re working today${mgrName?' — it goes to '+esc(mgrName):''}.</p>
+      <div class="quick-row">
+        <button class="quick-btn office" data-quick="office"><span class="qi">${ico('office',16)}</span>In-Office</button>
+        <button class="quick-btn wfh" data-quick="wfh"><span class="qi">${ico('wfh',16)}</span>WFH</button>
+        <button class="quick-btn leave" data-quick="leave"><span class="qi">${ico('leave',16)}</span>Leave</button>
+      </div>
+    </div>`;
+
+  const monthCard = `
+    <div class="card section">
+      <div class="eyebrow">${monthLabel(currentMonthKey())}</div>
+      <div class="tile-grid">
+        <div class="tile office"><div class="num">${s.office}</div><div class="lbl">In-Office days</div></div>
+        <div class="tile wfh"><div class="num">${s.wfh}</div><div class="lbl">WFH days</div></div>
+        <div class="tile leave"><div class="num">${s.leave}</div><div class="lbl">Leave days</div></div>
+        <div class="tile"><div class="num">${fmtHours(s.hours)}h</div><div class="lbl">Hours logged</div></div>
+      </div>
+    </div>`;
+
+  const tasksCard = `
+    <div class="card section">
+      <div class="eyebrow">My open tasks${open.length?' · '+open.length:''}${overdue.length?' · <span style="color:var(--danger)">'+overdue.length+' overdue</span>':''}</div>
+      ${open.length ? open.slice(0,4).map(t=>`
+        <div class="mini-task">
+          <span class="t">${esc(t.title)}</span>
+          <span class="d ${isOverdue(t.dueDate,t.status)?'overdue':''}">${taskDueLabel(t)}</span>
+        </div>`).join('') : `<p class="today-sub" style="margin:0;">Nothing waiting on you. Tasks assigned by your manager will show up here.</p>`}
+      ${open.length ? `<div class="link-row"><button class="btn-text" data-goto="tasks">See all my tasks →</button></div>` : ''}
+    </div>`;
+
+  let teamBlock = '';
+  if(teamView){
+    const [team, assigned] = await Promise.all([ loadTeamMembers(), loadAssignedTasks() ]);
+    const c = {office:0, wfh:0, leave:0};
+    team.forEach(n=>{ const r = todayReports[n]; if(r && c[r.status]!==undefined) c[r.status]++; });
+    const awaiting = team.filter(n=>!todayReports[n] && isWorkDay(today));
+    state.counts.awaiting = awaiting.length;
+    const aOpen = assigned.filter(t=>t.status!=='done');
+    const aOver = aOpen.filter(t=>isOverdue(t.dueDate,t.status));
+    const aDone = assigned.length - aOpen.length;
+    const watch = aOpen.slice().sort((a,b)=> (a.dueDate||'9999') < (b.dueDate||'9999') ? -1 : 1).slice(0,3);
+
+    teamBlock = `
+    <div class="section-title">Your team today<span class="rule"></span></div>
+    <div class="home-row">
+      <div class="card section">
+        <div class="eyebrow">Attendance · ${team.length} direct report${team.length===1?'':'s'}</div>
+        <div class="tile-grid">
+          <div class="tile office"><div class="num">${c.office}</div><div class="lbl">In-Office</div></div>
+          <div class="tile wfh"><div class="num">${c.wfh}</div><div class="lbl">WFH</div></div>
+          <div class="tile leave"><div class="num">${c.leave}</div><div class="lbl">On leave</div></div>
+          <div class="tile ${awaiting.length?'warn':''}"><div class="num">${awaiting.length}</div><div class="lbl">Not reported yet</div></div>
+        </div>
+        ${awaiting.length ? `<div class="await-list">${awaiting.map(n=>`<span class="await-chip"><span class="avatar">${esc(initials(n))}</span>${esc(n)}</span>`).join('')}</div>`
+          : (team.length ? `<div class="all-clear">Everyone has reported today.</div>` : `<p class="today-sub" style="margin:14px 0 0;">Nobody reports to you yet. Once people pick you as their manager they’ll appear here.</p>`)}
+        <div class="link-row"><button class="btn-text" data-goto="roster">Open today’s roster →</button></div>
+      </div>
+      <div class="card section">
+        <div class="eyebrow">Tasks you assigned</div>
+        <div class="tile-grid" style="margin-bottom:6px;">
+          <div class="tile"><div class="num">${aOpen.length}</div><div class="lbl">Open</div></div>
+          <div class="tile ${aOver.length?'warn':''}"><div class="num">${aOver.length}</div><div class="lbl">Overdue</div></div>
+        </div>
+        ${watch.length ? watch.map(t=>`
+          <div class="mini-task">
+            <span class="t">${esc(t.title)}<span style="display:block;font-weight:400;font-size:12px;color:var(--ink-soft);">${esc(t.employeeName)}</span></span>
+            <span class="d ${isOverdue(t.dueDate,t.status)?'overdue':''}">${taskDueLabel(t)}</span>
+          </div>`).join('') : `<p class="today-sub" style="margin:10px 0 0;">${aDone? aDone+' completed so far. ' : ''}No open tasks right now.</p>`}
+        <div class="link-row"><button class="btn-text" data-goto="assign">Assign &amp; track →</button></div>
+      </div>
+    </div>`;
+  }
+
+  return `
+  ${teamView ? `<div class="section-title" style="margin-top:0;">My day<span class="rule"></span></div>` : ''}
+  <div class="home-row">${todayCard}${monthCard}</div>
+  <div class="home-row" style="grid-template-columns:1fr;">${tasksCard}</div>
+  ${teamBlock}`;
+}
+
+function goPage(key){
+  state.role = key;
+  state.tsSelected = null;
+  state.openRoster = null;
+  window.scrollTo({ top:0 });
+  render();
+}
+
+function setMode(mode){
+  if(mode==='manager' && !isManagerUser()) return;
+  if(state.mode === mode) return;
+  state.mode = mode;
+  if(mode==='employee' && TEAM_PAGES.includes(state.role)) state.role = 'home';
+  state.tsSelected = null;
+  showToast(mode==='manager' ? 'Manager view — team pages are now in the sidebar' : 'Employee view — showing only your own work');
+  render();
+}
+
+
+/* ---------- Auth screens ---------- */
+function loadingScreen(){
+  return `<div class="auth-wrap"><p>Loading…</p></div>`;
+}
+
+function loginScreen(){
   return `
   ${setupBanner()}
-  <div class="topbar">
-    <div class="brand">
-      <div class="mark">
-        <svg width="26" height="26" viewBox="0 0 26 26" fill="none">
-          <rect x="2" y="3" width="22" height="20" rx="3" stroke="#2C4A52" stroke-width="1.6"/>
-          <path d="M2 9H24" stroke="#2C4A52" stroke-width="1.6"/>
-          <circle cx="8" cy="6" r="0.9" fill="#2C4A52"/>
-          <circle cx="18" cy="6" r="0.9" fill="#2C4A52"/>
-          <path d="M6.5 14H11.5M6.5 18H15" stroke="#3D7A5C" stroke-width="1.4" stroke-linecap="round"/>
-        </svg>
-        <h1>Daybook</h1>
-      </div>
-      <div class="tag">Daily status &amp; work log for the team</div>
+  <div class="auth-wrap">
+    <div class="icon-badge">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="2" y="4" width="16" height="13" rx="2" stroke="white" stroke-width="1.5"/><path d="M2 6l8 5 8-5" stroke="white" stroke-width="1.5"/></svg>
     </div>
-    <div class="role-switch">
-      <button data-role="employee" class="${state.role==='employee'?'active':''}">Daily Entry</button>
-      <button data-role="timesheet" class="${state.role==='timesheet'?'active':''}">My Timesheet</button>
-      <button data-role="manager" class="${state.role==='manager'?'active':''}">Manager</button>
+    <h2>Sign in to Daybook</h2>
+    <p>Enter your work email and we'll send you a one-click sign-in link — no password needed.</p>
+    <div class="card">
+      <div class="field">
+        <label style="font-size:12px;font-weight:600;color:var(--ink-soft);">Work email</label>
+        <input type="email" id="login-email" placeholder="you@company.com" style="font-family:'Inter',sans-serif;font-size:14px;padding:10px 12px;border:1px solid var(--line);border-radius:7px;background:var(--paper);">
+      </div>
+      <button class="btn btn-primary" id="send-link" style="width:100%;">Send sign-in link</button>
     </div>
   </div>`;
+}
+
+function magicLinkSentScreen(){
+  return `
+  <div class="auth-wrap">
+    <div class="icon-badge" style="background:var(--office);">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><path d="M4 10l4 4 8-8" stroke="white" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <h2>Check your email</h2>
+    <p>We sent a sign-in link to <strong>${esc(auth.lastEmail)}</strong>. Open it on this device to continue — the link expires after a short while.</p>
+    <button class="btn-text" id="back-to-login">Use a different email</button>
+  </div>`;
+}
+
+function setupProfileScreen(){
+  const mgrLocked = !auth.canBeManager;
+  const managerOptions = auth.managers.map(m=>`<option value="${m.id}">${esc(m.full_name)}</option>`).join('');
+  return `
+  <div class="auth-wrap">
+    <div class="icon-badge">
+      <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="7" r="3.2" stroke="white" stroke-width="1.5"/><path d="M3.5 17c1-3.5 4-5 6.5-5s5.5 1.5 6.5 5" stroke="white" stroke-width="1.5"/></svg>
+    </div>
+    <h2>Set up your profile</h2>
+    <p>One-time setup — signed in as ${esc((auth.session||{}).user ? auth.session.user.email : '')}.</p>
+    <div class="card">
+      <div class="field">
+        <label style="font-size:12px;font-weight:600;color:var(--ink-soft);">Your full name</label>
+        <input type="text" id="setup-name" placeholder="e.g. Aisha Khan" style="font-family:'Inter',sans-serif;font-size:14px;padding:10px 12px;border:1px solid var(--line);border-radius:7px;background:var(--paper);">
+      </div>
+      <div class="field">
+        <label style="font-size:12px;font-weight:600;color:var(--ink-soft);">I am a...</label>
+        <div class="role-pick">
+          <button type="button" data-pick-role="employee" class="active">Employee</button>
+          <button type="button" data-pick-role="manager" ${mgrLocked ? 'disabled title="Ask your admin to approve your email for manager access"' : ''}>Manager ${mgrLocked ? '🔒' : ''}</button>
+        </div>
+        ${mgrLocked ? `<div class="hint" style="margin-top:-4px;">Manager access is locked for your email. Ask your admin to add you, then refresh this page.</div>` : ''}
+      </div>
+      <div class="field" id="setup-manager-field">
+        <label id="setup-manager-label" style="font-size:12px;font-weight:600;color:var(--ink-soft);">Reporting manager <span class="req">*</span></label>
+        <select id="setup-manager-select">
+          <option value="">${auth.managers.length ? '— Select —' : 'No managers registered yet'}</option>
+          ${managerOptions}
+        </select>
+        <div class="hint" id="setup-manager-hint" style="display:none;">Leave blank if you're a top-level manager with no one above you.</div>
+      </div>
+      <button class="btn btn-primary" id="setup-continue" style="width:100%;">Continue</button>
+    </div>
+  </div>`;
+}
+
+let pickedRole = 'employee';
+
+function bindAuthEvents(){
+  const sendLink = document.getElementById('send-link');
+  if(sendLink){
+    sendLink.onclick = ()=> sendMagicLink(document.getElementById('login-email').value.trim());
+  }
+  const backToLogin = document.getElementById('back-to-login');
+  if(backToLogin){ backToLogin.onclick = ()=>{ auth.screen='login'; paint(); }; }
+
+  pickedRole = 'employee';
+  document.querySelectorAll('[data-pick-role]').forEach(btn=>{
+    if(btn.disabled) return;
+    btn.onclick = ()=>{
+      pickedRole = btn.dataset.pickRole;
+      document.querySelectorAll('[data-pick-role]').forEach(b=>b.classList.toggle('active', b===btn));
+      const label = document.getElementById('setup-manager-label');
+      const hint = document.getElementById('setup-manager-hint');
+      if(pickedRole==='manager'){
+        label.innerHTML = 'Reports to <span style="color:var(--ink-soft);font-weight:400;">(optional)</span>';
+        hint.style.display = '';
+      } else {
+        label.innerHTML = 'Reporting manager <span class="req">*</span>';
+        hint.style.display = 'none';
+      }
+    };
+  });
+  const setupContinue = document.getElementById('setup-continue');
+  if(setupContinue){
+    setupContinue.onclick = ()=>{
+      const name = document.getElementById('setup-name').value;
+      const mgrId = document.getElementById('setup-manager-select').value;
+      completeProfile(name, pickedRole, mgrId);
+    };
+  }
+}
+
+/* ---------- Root paint: decides auth screen vs. the real app ---------- */
+function paint(){
+  const app = document.getElementById('app');
+  if(auth.screen==='loading'){ app.innerHTML = '<div class="auth-page">'+loadingScreen()+'</div>'; return; }
+  if(auth.screen==='login'){ app.innerHTML = '<div class="auth-page">'+loginScreen()+'</div>'; bindAuthEvents(); return; }
+  if(auth.screen==='sent'){ app.innerHTML = '<div class="auth-page">'+magicLinkSentScreen()+'</div>'; bindAuthEvents(); return; }
+  if(auth.screen==='setup-profile'){ app.innerHTML = '<div class="auth-page">'+setupProfileScreen()+'</div>'; bindAuthEvents(); return; }
+  render();
 }
 
 /* ---------- Employee view ---------- */
 async function employeeView(){
-  if(!state.loadedProfile) await loadProfile();
-
-  if(!state.profile.name){
-    return profileSetupCard();
-  }
-
   // load today's report for this person if not editing fresh
   const reports = await loadDayReports(state.date);
   const mine = reports[state.profile.name] || null;
   state.todaysReport = mine;
 
   if(mine && !state.editing){
-    return submittedCard(mine, reports);
+    return holidayBanner(state.date) + submittedCard(mine, reports);
   }
 
-  return formCard(mine);
-}
-
-function profileSetupCard(){
-  return `
-  <div class="card section">
-    <h2>Set up your profile</h2>
-    <div class="profile-row">
-      <div class="field">
-        <label>Your name <span class="req">*</span></label>
-        <input type="text" id="pf-name" placeholder="e.g. Aisha Khan">
-      </div>
-      <div class="field">
-        <label>Reporting manager</label>
-        <input type="text" id="pf-manager" placeholder="e.g. Rahul Verma">
-      </div>
-      <button class="btn btn-primary" id="pf-save">Continue</button>
-    </div>
-    <div class="hint">Saved on this device so you don't have to re-enter it next time.</div>
-  </div>`;
+  return holidayBanner(state.date) + formCard(mine);
 }
 
 function submittedCard(report, reports){
@@ -651,7 +1638,7 @@ function submittedCard(report, reports){
   <div class="card section">
     <h2>Your report — ${fmtDate(state.date)}</h2>
     <span class="badge ${badgeClass}" style="margin-bottom:14px;display:inline-block;">${label}</span>
-    ${!isLeave ? `<span style="font-family:'JetBrains Mono';font-size:13px;color:var(--ink-soft);margin-left:10px;">${fmtHours(reportHours(report))}h logged</span>` : ''}
+    ${!isLeave ? `<span style="font-family:'JetBrains Mono',monospace;font-size:13px;color:var(--ink-soft);margin-left:10px;">${fmtHours(reportHours(report))}h logged</span>` : ''}
     ${isLeave ? `
       <div style="margin-top:10px;">
         <div class="hint" style="margin-top:0;font-weight:600;color:var(--ink);">${esc(report.leaveType)}</div>
@@ -688,13 +1675,15 @@ function formCard(existing){
     <div class="profile-row" style="align-items:center;">
       <div class="field" style="max-width:220px;">
         <label>Reporting to</label>
-        <input type="text" id="pf-manager-inline" value="${esc(state.profile.managerName)}" placeholder="Manager name">
+        <select id="pf-manager-inline">
+          <option value="">${auth.managers.length ? '— Select manager —' : 'No managers registered yet'}</option>
+          ${auth.managers.map(m=>`<option value="${m.id}" ${m.id===state.profile.managerId?'selected':''}>${esc(m.full_name)}</option>`).join('')}
+        </select>
       </div>
       <div class="date-row" style="flex:1;">
         <label style="font-size:12px;font-weight:600;color:var(--ink-soft);">Date</label>
         <input type="date" id="date-picker" value="${state.date}" max="${todayISO()}">
       </div>
-      <button class="btn-text" id="who-am-i">Not ${esc(state.profile.name)}?</button>
     </div>
   </div>
 
@@ -782,13 +1771,12 @@ function statusLabel(s){
 
 /* ---------- Timesheet view (employee's own month) ---------- */
 async function timesheetView(){
-  if(!state.loadedProfile) await loadProfile();
-  if(!state.profile.name){
-    return profileSetupCard();
-  }
   const monthData = await loadMonthReportsAll(state.tsMonth);
   const s = monthSummary(state.profile.name, monthData);
+  const holN = monthHolidayCount(state.tsMonth);
+  const pend = pendingDays(state.tsMonth, state.profile.name, monthData);
   const selectedReport = state.tsSelected ? (monthData[state.tsSelected]||{})[state.profile.name] : null;
+  state._drawerReport = selectedReport || null;
 
   return `
   <div class="card section">
@@ -802,6 +1790,7 @@ async function timesheetView(){
         <span><span class="dot office"></span>In-Office</span>
         <span><span class="dot wfh"></span>WFH</span>
         <span><span class="dot leave"></span>Leave</span>
+        <span><span class="dot holiday"></span>Holiday</span>
         <span><span class="dot none"></span>No report</span>
       </div>
     </div>
@@ -811,33 +1800,310 @@ async function timesheetView(){
       <div class="stat office"><div class="num">${s.office}</div><div class="lbl">In-Office days</div></div>
       <div class="stat wfh"><div class="num">${s.wfh}</div><div class="lbl">WFH days</div></div>
       <div class="stat leave"><div class="num">${s.leave}</div><div class="lbl">Leave days</div></div>
+      <div class="stat hol"><div class="num">${holN}</div><div class="lbl">Holidays</div></div>
       <div class="stat"><div class="num">${fmtHours(s.hours)}h</div><div class="lbl">Hours logged</div></div>
     </div>
 
-    ${state.tsSelected ? `
-      <div class="detail-panel">
-        <div class="detail-head">
-          <h3>${fmtDate(state.tsSelected)}</h3>
-          ${selectedReport ? `<button class="btn-text" id="ts-edit-day">Edit this day</button>` : `<button class="btn-text" id="ts-edit-day">Fill in this day</button>`}
-        </div>
-        ${dayDetailHTML(state.tsSelected, selectedReport)}
-      </div>
-    ` : `<div class="hint">Click a day to see what was logged.</div>`}
+    ${pend.length ? `
+    <div class="fill-note">
+      <div class="txt"><strong>${pend.length} working day${pend.length===1?'':'s'}</strong> still need${pend.length===1?'s':''} a report <span>— ${pend.slice(0,5).map(d=>fmtDate(d).replace(/^\w+, /,'')).join(', ')}${pend.length>5?' …':''}. Holidays and weekends are skipped.</span></div>
+      <button class="btn btn-ghost" id="fill-next" data-iso="${pend[0]}">Fill ${fmtDate(pend[0]).replace(/^\w+, /,'')}</button>
+    </div>` : `<div class="fill-note ok">You’re all caught up for this month.</div>`}
+    <div class="hint">Tap a day to see its details. Purple days are company holidays.</div>
   </div>
 
   <div class="card section" style="display:flex;justify-content:flex-end;">
     <button class="btn btn-ghost" id="export-my-csv">Download this month (CSV)</button>
+  </div>
+  ${state.tsSelected ? dayDrawerHTML(state.tsSelected, selectedReport, { own:true }) : ''}`;
+}
+
+/* ---------- Holidays page ---------- */
+const MONTHS3 = {jan:0,feb:1,mar:2,apr:3,may:4,jun:5,jul:6,aug:7,sep:8,oct:9,nov:10,dec:11};
+function mkISO(y,m,d){
+  if(y<100) y += 2000;
+  const dt = new Date(y, m, d);
+  if(dt.getFullYear()!==y || dt.getMonth()!==m || dt.getDate()!==d) return null;
+  return y+'-'+String(m+1).padStart(2,'0')+'-'+String(d).padStart(2,'0');
+}
+function parseHolDate(v){
+  if(v==null || v==='') return null;
+  if(typeof v==='number'){
+    if(v<30000 || v>80000) return null; // not an Excel date serial (e.g. a serial number column)
+    const dt = new Date(Date.UTC(1899,11,30) + Math.round(v)*86400000);
+    return mkISO(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate());
+  }
+  const t = String(v).trim().replace(/(\d)(st|nd|rd|th)\b/i,'$1').replace(/,/g,' ').replace(/\s+/g,' ');
+  let m;
+  if((m = t.match(/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})/))) return mkISO(+m[1], m[2]-1, +m[3]);
+  if((m = t.match(/^(\d{1,2})[-\/. ](\d{1,2})[-\/. ](\d{2,4})(?:\s.*)?$/))){
+    let d=+m[1], mo=+m[2]-1;
+    if(mo>11 && d<=12){ const x=d-1; d=mo+1; mo=x; } // looks like mm/dd — swap
+    return mkISO(+m[3], mo, d);
+  }
+  if((m = t.match(/^(\d{1,2})[-\/. ]([A-Za-z]{3,9})[-\/. ](\d{2,4})/))){
+    const mo = MONTHS3[m[2].slice(0,3).toLowerCase()];
+    return mo===undefined ? null : mkISO(+m[3], mo, +m[1]);
+  }
+  if((m = t.match(/^([A-Za-z]{3,9})[-\/. ](\d{1,2})[-\/. ](\d{2,4})/))){
+    const mo = MONTHS3[m[1].slice(0,3).toLowerCase()];
+    return mo===undefined ? null : mkISO(+m[3], mo, +m[2]);
+  }
+  return null;
+}
+// rows = array of arrays (from Excel or CSV). Picks the date + name out of each row.
+function extractHolidays(rows){
+  const found = {}; let skipped = 0;
+  const weekday = /^(mon|tue|wed|thu|fri|sat|sun)[a-z]*\.?$/i;
+  rows.forEach(r=>{
+    const cells = (r||[]).map(c=>c==null?'':c);
+    let di = -1, date = null;
+    for(let i=0;i<cells.length;i++){ const d = parseHolDate(cells[i]); if(d){ di=i; date=d; break; } }
+    if(di<0){ if(cells.some(c=>String(c).trim())) skipped++; return; }
+    let name = '';
+    for(let i=0;i<cells.length;i++){
+      if(i===di) continue;
+      const t = String(cells[i]).trim();
+      if(!t || weekday.test(t) || /^\d+$/.test(t) || parseHolDate(cells[i])) continue;
+      name = t; break;
+    }
+    found[date] = name || 'Holiday';
+  });
+  const list = Object.keys(found).sort().map(date=>({ date, name: found[date] }));
+  return { rows: list, skipped };
+}
+function parseCSVText(text){
+  text = text.replace(/^﻿/,'');
+  const rows = []; let row = [], cell = '', q = false;
+  for(let i=0;i<text.length;i++){
+    const c = text[i];
+    if(q){
+      if(c==='"'){ if(text[i+1]==='"'){ cell+='"'; i++; } else q=false; } else cell+=c;
+    } else if(c==='"') q = true;
+    else if(c===',' || c===';' || c==='\t'){ row.push(cell); cell=''; }
+    else if(c==='\n' || c==='\r'){ if(c==='\r' && text[i+1]==='\n') i++; row.push(cell); rows.push(row); row=[]; cell=''; }
+    else cell+=c;
+  }
+  if(cell!=='' || row.length){ row.push(cell); rows.push(row); }
+  return rows;
+}
+function loadSheetJS(){
+  if(window.XLSX) return Promise.resolve();
+  return new Promise((res,rej)=>{
+    const sc = document.createElement('script');
+    sc.src = 'https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js';
+    sc.onload = res; sc.onerror = ()=>rej(new Error('Could not load the Excel reader'));
+    document.head.appendChild(sc);
+  });
+}
+async function readHolidayFile(file){
+  const ext = (file.name.split('.').pop()||'').toLowerCase();
+  if(ext==='csv' || ext==='txt') return parseCSVText(await file.text());
+  await loadSheetJS();
+  const wb = XLSX.read(await file.arrayBuffer(), { type:'array' });
+  let rows = [];
+  wb.SheetNames.forEach(n=>{ rows = rows.concat(XLSX.utils.sheet_to_json(wb.Sheets[n], { header:1, raw:true, defval:'' })); });
+  return rows;
+}
+
+function whenLabel(iso){
+  const today = todayISO();
+  if(iso === today) return 'Today';
+  if(iso < today) return '';
+  const days = Math.round((new Date(iso+'T00:00:00') - new Date(today+'T00:00:00'))/86400000);
+  return days===1 ? 'Tomorrow' : 'In ' + days + ' days';
+}
+
+async function holidaysView(){
+  const canManage = inManagerMode();
+  const h = state.hol;
+  const dates = Object.keys(state.holidays).sort();
+  const today = todayISO();
+
+  const manage = canManage ? `
+  <div class="card section hol-card">
+    <h2>Add holidays from HR’s sheet</h2>
+    <p class="hol-help">Upload the Excel (.xlsx) or CSV file HR sends. Daybook finds the dates and holiday names by itself — you can check the list before saving. Uploading again just updates matching dates.</p>
+    <div class="hol-pick">
+      <input type="file" id="hol-file" accept=".xlsx,.xls,.csv,.txt" aria-label="Choose HR holiday sheet">
+      <button class="btn-text" id="hol-sample" type="button">Download sample file</button>
+    </div>
+    ${h.error ? `<div class="hol-err">${esc(h.error)}</div>` : ''}
+    ${h.rows.length ? `
+    <div class="hol-preview">
+      <div class="ph">
+        <span><strong>${h.rows.length} holiday${h.rows.length===1?'':'s'}</strong> found in ${esc(h.file)}${h.skipped?` <span style="color:var(--ink-soft)">· ${h.skipped} other row${h.skipped===1?'':'s'} ignored</span>`:''}</span>
+        <span style="display:flex;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-ghost" id="hol-cancel" type="button">Cancel</button>
+          <button class="btn btn-primary" id="hol-import" type="button">Save ${h.rows.length} holiday${h.rows.length===1?'':'s'}</button>
+        </span>
+      </div>
+      <div class="hol-rows">
+        ${h.rows.map(r=>`<div class="hol-row"><span class="hd">${fmtDate(r.date)}, ${r.date.slice(0,4)}</span><span class="hn">${esc(r.name)}</span><span></span></div>`).join('')}
+      </div>
+    </div>` : ''}
+    <div class="hol-add">
+      <input type="date" id="hol-add-date" class="control" aria-label="Holiday date">
+      <input type="text" id="hol-add-name" class="control" placeholder="Or add one: holiday name" autocomplete="off" aria-label="Holiday name">
+      <button class="btn btn-ghost" id="hol-add" type="button">Add</button>
+    </div>
+  </div>` : '';
+
+  let list = '';
+  if(!dates.length){
+    list = `<div class="task-empty"><div style="font-family:'Space Grotesk',sans-serif;font-size:15px;color:var(--ink);margin-bottom:6px;">No holidays added yet</div><div>${canManage ? 'Upload HR’s sheet above and they’ll appear on everyone’s calendar.' : 'Once HR’s holiday list is added, it will show here and on your timesheet.'}</div></div>`;
+  } else {
+    let year = '';
+    list = dates.map(d=>{
+      const y = d.slice(0,4);
+      const head = y!==year ? `<div class="hol-year">${y}</div>` : '';
+      year = y;
+      const when = whenLabel(d);
+      return head + `<div class="hol-row ${d<today?'past':''}">
+        <span class="hd">${fmtDate(d)}</span>
+        <span class="hn">${esc(state.holidays[d])}</span>
+        <span style="display:flex;align-items:center;gap:8px;">${when?`<span class="when">${when}</span>`:''}${canManage?`<button class="btn-danger-text hol-del" data-iso="${d}" title="Remove holiday" aria-label="Remove ${esc(state.holidays[d])}">✕</button>`:''}</span>
+      </div>`;
+    }).join('');
+  }
+
+  return `${manage}
+  <div class="card section">
+    <h2>Company holidays</h2>
+    <div class="hol-help" style="margin-bottom:6px;">${dates.length} on the calendar. These days are skipped when counting working days you still need to report.</div>
+    ${list}
   </div>`;
 }
 
 /* ---------- Manager view ---------- */
-async function managerRoot(){
+/* ---------- Tasks ---------- */
+function taskStatusLabel(s){
+  return s==='todo' ? 'To do' : s==='in_progress' ? 'In progress' : 'Done';
+}
+
+function isOverdue(dueDate, status){
+  if(!dueDate || status==='done') return false;
+  return dueDate < todayISO();
+}
+
+function taskCard(t, opts){
+  const overdue = isOverdue(t.dueDate, t.status);
+  const byline = opts.showAssignedBy
+    ? `Assigned by ${esc(managerNameById(t.managerId) || 'your manager')}`
+    : `Assigned to ${esc(t.employeeName)}`;
   return `
-  <div class="filter-row">
-    <button class="chip ${state.mgrMode==='roster'?'active':''}" data-mgrmode="roster">Today's Roster</button>
-    <button class="chip ${state.mgrMode==='timesheet'?'active':''}" data-mgrmode="timesheet">Employee Timesheet</button>
+  <div class="task-card" data-task-id="${t.id}">
+    <div class="task-top">
+      <div>
+        <div class="task-title ${t.status==='done'?'done':''}">${esc(t.title)}</div>
+        ${t.description ? `<div class="task-desc">${esc(t.description)}</div>` : ''}
+      </div>
+      ${opts.canDelete ? `<button class="btn-danger-text task-delete" title="Delete task" data-task-id="${t.id}">✕</button>` : ''}
+    </div>
+    <div class="task-meta">
+      <span>${byline}</span>
+      ${t.dueDate ? `<span class="task-due ${overdue?'overdue':''}">${overdue?'Overdue — ':''}Due ${fmtDate(t.dueDate)}</span>` : ''}
+      ${opts.editableStatus ? `
+        <select class="status-pill ${t.status}" data-task-status="${t.id}">
+          <option value="todo" ${t.status==='todo'?'selected':''}>To do</option>
+          <option value="in_progress" ${t.status==='in_progress'?'selected':''}>In progress</option>
+          <option value="done" ${t.status==='done'?'selected':''}>Done</option>
+        </select>
+      ` : `<span class="status-pill ${t.status}">${taskStatusLabel(t.status)}</span>`}
+    </div>
+  </div>`;
+}
+
+async function myTasksView(){
+  state.myTasks = await loadMyTasks();
+  const tasks = state.myTasks;
+  const open = tasks.filter(t=>t.status!=='done');
+  const done = tasks.filter(t=>t.status==='done');
+  return `
+  <div class="card section">
+    <h2>Your tasks</h2>
+    ${tasks.length===0 ? `
+      <div class="task-empty">
+        <div style="font-family:'Space Grotesk',sans-serif;font-size:15px;color:var(--ink);margin-bottom:6px;">No tasks assigned yet</div>
+        <div>When your manager assigns you something, it'll show up here.</div>
+      </div>
+    ` : `
+      ${open.map(t=>taskCard(t, { showAssignedBy:true, editableStatus:true, canDelete:false })).join('')}
+      ${done.length ? `<div class="hint" style="margin:14px 0 8px;">Completed</div>${done.map(t=>taskCard(t, { showAssignedBy:true, editableStatus:true, canDelete:false })).join('')}` : ''}
+    `}
+  </div>`;
+}
+
+async function assignTasksView(){
+  state.assignableEmployees = await loadTeamMembersFull();
+  state.assignedTasks = await loadAssignedTasks();
+
+  if(state.assignableEmployees.length===0){
+    return `<div class="card section"><div class="task-empty"><div style="font-family:'Space Grotesk',sans-serif;font-size:15px;color:var(--ink);margin-bottom:6px;">No direct reports yet</div><div>Once someone selects you as their manager, you can assign tasks to them here.</div></div></div>`;
+  }
+
+  const d = state.taskDraft;
+  const all = state.assignedTasks;
+  const openN = all.filter(t=>t.status!=='done').length;
+  const overN = all.filter(t=>isOverdue(t.dueDate,t.status)).length;
+  const doneN = all.length - openN;
+  const filtered = state.taskFilter==='all' ? all : all.filter(t=>t.status===state.taskFilter);
+  const cnt = f => f==='all' ? all.length : all.filter(t=>t.status===f).length;
+  const allSelected = state.assignableEmployees.length > 0 && state.assignableEmployees.every(e=>d.employeeIds.includes(e.id));
+
+  return `
+  <div class="card section form-card">
+    <h2 class="form-title">New task</h2>
+    <p class="form-sub">Four quick steps. The task lands in each person’s My Tasks right away.</p>
+
+    <div class="step">
+      <label class="step-label" for="task-title"><span class="step-n">1</span>Task title <span class="req">*</span></label>
+      <input type="text" id="task-title" class="control lg" value="${esc(d.title)}" placeholder="e.g. Finish Q3 report draft" autocomplete="off">
+    </div>
+
+    <div class="step">
+      <label class="step-label" for="task-desc"><span class="step-n">2</span>Description <span class="opt">optional</span></label>
+      <textarea id="task-desc" class="control" placeholder="Add context, links or what “done” looks like…">${esc(d.description)}</textarea>
+    </div>
+
+    <div class="step">
+      <div class="step-label"><span class="step-n">3</span>Assign to <span class="req">*</span>
+        <button type="button" class="btn-text step-aside" id="assign-all">${allSelected ? 'Clear all' : 'Select all'}</button>
+      </div>
+      <div class="assignee-grid">
+        ${state.assignableEmployees.map(e=>`
+          <label class="assignee-check ${d.employeeIds.includes(e.id)?'checked':''}">
+            <input type="checkbox" class="assignee-box" value="${e.id}" ${d.employeeIds.includes(e.id)?'checked':''}>
+            ${esc(e.full_name)}
+          </label>`).join('')}
+      </div>
+    </div>
+
+    <div class="step">
+      <label class="step-label" for="task-due"><span class="step-n">4</span>Due date <span class="opt">optional</span></label>
+      <input type="date" id="task-due" class="control date-control" value="${d.dueDate}" min="${todayISO()}">
+    </div>
+
+    <div class="form-actions">
+      <div class="assign-summary" id="assign-summary"></div>
+      <button class="btn btn-primary btn-lg" id="assign-task-btn">Assign task</button>
+    </div>
   </div>
-  ${state.mgrMode==='roster' ? await managerRosterView() : await managerTimesheetView()}`;
+
+  <div class="card section" id="tracker">
+    <div class="tracker-head"><h2>Tasks you’ve assigned</h2></div>
+    <div class="tracker-sum">
+      <span><b>${openN}</b> open</span>
+      <span class="${overN?'warn':''}"><b>${overN}</b> overdue</span>
+      <span><b>${doneN}</b> done</span>
+    </div>
+    <div class="filter-row" style="margin-bottom:14px;">
+      ${['all','todo','in_progress','done'].map(f=>`
+        <button class="chip ${state.taskFilter===f?'active':''}" data-taskfilter="${f}">${f==='all'?'All':taskStatusLabel(f)}<span class="cnt">${cnt(f)}</span></button>
+      `).join('')}
+    </div>
+    ${filtered.length ? filtered.map(t=>taskCard(t, { showAssignedBy:false, editableStatus:false, canDelete:true })).join('') : `<div class="hint">No tasks in this filter.</div>`}
+  </div>`;
 }
 
 async function managerTimesheetView(){
@@ -875,6 +2141,7 @@ async function managerTimesheetView(){
         <span><span class="dot office"></span>In-Office</span>
         <span><span class="dot wfh"></span>WFH</span>
         <span><span class="dot leave"></span>Leave</span>
+        <span><span class="dot holiday"></span>Holiday</span>
         <span><span class="dot none"></span>No report</span>
       </div>
     </div>
@@ -887,21 +2154,19 @@ async function managerTimesheetView(){
       <div class="stat"><div class="num">${fmtHours(s.hours)}h</div><div class="lbl">Hours logged</div></div>
     </div>
 
-    ${state.tsSelected ? `
-      <div class="detail-panel">
-        <div class="detail-head"><h3>${fmtDate(state.tsSelected)}</h3></div>
-        ${dayDetailHTML(state.tsSelected, selectedReport)}
-      </div>
-    ` : `<div class="hint">Click a day to see that employee's log.</div>`}
+    <div class="hint">Tap a day to see ${esc(state.mgrEmployee||'their')}'s log.</div>
 
     <div style="display:flex;justify-content:flex-end;margin-top:16px;">
       <button class="btn btn-ghost" id="export-emp-csv">Download ${esc(state.mgrEmployee||'employee')}'s month (CSV)</button>
     </div>
-  </div>`;
+  </div>
+  ${state.tsSelected ? dayDrawerHTML(state.tsSelected, selectedReport, { own:false, who: state.mgrEmployee }) : ''}`;
 }
 
 async function managerRosterView(){
-  const reports = await loadDayReports(state.date);
+  const rawReports = await loadDayReports(state.date);
+  const reports = {};
+  Object.keys(rawReports).forEach(n=>{ if(n !== state.profile.name) reports[n] = rawReports[n]; });
   state.dayReports = reports;
   const names = Object.keys(reports);
   const counts = {office:0,wfh:0,leave:0};
@@ -912,7 +2177,12 @@ async function managerRosterView(){
     return reports[n].status === state.managerFilter;
   }).sort((a,b)=>a.localeCompare(b));
 
+  const team = await loadTeamMembers();
+  const awaiting = team.filter(n=>!reports[n] && isWorkDay(state.date));
+  if(state.date === todayISO()) state.counts.awaiting = awaiting.length;
+
   return `
+  ${holidayBanner(state.date, true)}
   ${dateBar()}
   <div class="stat-bar">
     <div class="stat office"><div class="num">${counts.office}</div><div class="lbl">In-Office</div></div>
@@ -920,6 +2190,11 @@ async function managerRosterView(){
     <div class="stat leave"><div class="num">${counts.leave}</div><div class="lbl">On Leave</div></div>
     <div class="stat"><div class="num">${names.length}</div><div class="lbl">Reports in</div></div>
   </div>
+  ${awaiting.length ? `
+  <div class="card section" style="padding:14px 20px;">
+    <div class="eyebrow" style="margin-bottom:0;">Not reported yet \u00b7 ${awaiting.length}</div>
+    <div class="await-list">${awaiting.map(n=>`<span class="await-chip"><span class="avatar">${esc(initials(n))}</span>${esc(n)}</span>`).join('')}</div>
+  </div>` : ''}
 
   <div class="filter-row">
     ${['all','office','wfh','leave'].map(f=>`
@@ -969,40 +2244,37 @@ function rosterItem(name, report){
 
 /* ---------- Events ---------- */
 function bindEvents(){
-  document.querySelectorAll('[data-role]').forEach(b=>{
-    b.onclick = ()=>{ state.role = b.dataset.role; render(); };
+  document.querySelectorAll('[data-nav]').forEach(b=>{
+    b.onclick = ()=> goPage(b.dataset.nav);
   });
-
-  const pfSave = document.getElementById('pf-save');
-  if(pfSave){
-    pfSave.onclick = async ()=>{
-      const name = document.getElementById('pf-name').value.trim();
-      const mgr = document.getElementById('pf-manager').value.trim();
-      if(!name){ showToast('Please enter your name'); return; }
-      state.profile = { name, managerName: mgr };
-      await saveProfile();
-      await registerMember(name);
-      render();
-    };
-  }
-
-  const whoAmI = document.getElementById('who-am-i');
-  if(whoAmI){
-    whoAmI.onclick = async ()=>{
-      state.profile = { name:'', managerName:'' };
+  document.querySelectorAll('[data-goto]').forEach(b=>{
+    b.onclick = ()=> goPage(b.dataset.goto);
+  });
+  document.querySelectorAll('[data-mode]').forEach(b=>{
+    b.onclick = ()=> setMode(b.dataset.mode);
+  });
+  document.querySelectorAll('[data-quick]').forEach(b=>{
+    b.onclick = ()=>{
+      const st = b.dataset.quick;
+      state.date = todayISO();
       state.editing = false;
-      state.draft = { status:'office', entries:[], leaveType:'Full day', leaveReason:'' };
-      await saveProfile();
-      render();
+      state.draft = { status: st, entries: [], leaveType:'Full day', leaveReason:'' };
+      if(st !== 'leave') state.draft.entries.push({id:uid(), start:'', end:'', description:''});
+      goPage('employee');
     };
-  }
+  });
+  const burger = document.getElementById('burger');
+  const shellEl = document.getElementById('shell');
+  if(burger && shellEl){ burger.onclick = ()=> shellEl.classList.add('nav-open'); }
+  const scrim = document.getElementById('scrim');
+  if(scrim && shellEl){ scrim.onclick = ()=> shellEl.classList.remove('nav-open'); }
+
+  const signOutBtn = document.getElementById('sign-out');
+  if(signOutBtn){ signOutBtn.onclick = signOut; }
 
   const mgrInline = document.getElementById('pf-manager-inline');
   if(mgrInline){
-    mgrInline.onblur = async ()=>{
-      state.profile.managerName = mgrInline.value.trim();
-      await saveProfile();
-    };
+    mgrInline.onchange = async ()=>{ await updateManagerSelection(mgrInline.value); render(); };
   }
 
   const datePicker = document.getElementById('date-picker');
@@ -1093,10 +2365,6 @@ function bindEvents(){
     c.onclick = ()=>{ state.managerFilter = c.dataset.filter; render(); };
   });
 
-  document.querySelectorAll('.chip[data-mgrmode]').forEach(c=>{
-    c.onclick = ()=>{ state.mgrMode = c.dataset.mgrmode; state.tsSelected = null; render(); };
-  });
-
   document.querySelectorAll('.roster-head').forEach(h=>{
     h.onclick = ()=>{
       const name = h.dataset.name;
@@ -1120,10 +2388,24 @@ function bindEvents(){
 
   const tsEditDay = document.getElementById('ts-edit-day');
   if(tsEditDay) tsEditDay.onclick = ()=>{
+    const iso = state.tsSelected;
+    const r = state._drawerReport;
     state.role = 'employee';
-    state.date = state.tsSelected;
-    state.editing = false;
-    state.draft = { status:'office', entries:[{id:uid(),start:'',end:'',description:''}], leaveType:'Full day', leaveReason:'' };
+    state.date = iso;
+    state.tsSelected = null;
+    if(r){
+      state.draft = {
+        status: r.status,
+        entries: (r.entries && r.entries.length ? r.entries : [{start:'',end:'',description:''}]).map(e=>({...e, id:e.id||uid()})),
+        leaveType: r.leaveType || 'Full day',
+        leaveReason: r.leaveReason || ''
+      };
+      state.editing = true;
+    } else {
+      state.draft = { status:'office', entries:[{id:uid(),start:'',end:'',description:''}], leaveType:'Full day', leaveReason:'' };
+      state.editing = false;
+    }
+    window.scrollTo({ top:0 });
     render();
   };
 
@@ -1156,7 +2438,146 @@ function bindEvents(){
     cell.onclick = ()=>{
       const iso = cell.dataset.iso;
       if(!iso) return;
-      state.tsSelected = state.tsSelected===iso ? null : iso;
+      state._drawerEnter = !state.tsSelected;
+      state.tsSelected = iso;
+      render();
+    };
+    cell.onkeydown = e=>{ if(e.key==='Enter' || e.key===' '){ e.preventDefault(); cell.onclick(); } };
+  });
+
+  ['drawer-scrim','drawer-close','drawer-close-2'].forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.onclick = closeDrawer;
+  });
+
+  /* --- Holidays --- */
+  const fillNext = document.getElementById('fill-next');
+  if(fillNext) fillNext.onclick = ()=>{
+    state.role = 'employee'; state.date = fillNext.dataset.iso; state.tsSelected = null;
+    state.draft = { status:'office', entries:[{id:uid(),start:'',end:'',description:''}], leaveType:'Full day', leaveReason:'' };
+    state.editing = false; window.scrollTo({ top:0 }); render();
+  };
+  const holFile = document.getElementById('hol-file');
+  if(holFile) holFile.onchange = async ()=>{
+    const f = holFile.files[0]; if(!f) return;
+    try{
+      const r = extractHolidays(await readHolidayFile(f));
+      state.hol = { rows:r.rows, skipped:r.skipped, file:f.name,
+        error: r.rows.length ? '' : 'No dates found in this file. Make sure it has a column with dates (like 26-Jan-2026) and one with the holiday name.' };
+    }catch(e){
+      console.error(e);
+      state.hol = { rows:[], skipped:0, file:f.name, error:'Could not read this file. Try saving it as .xlsx or .csv and upload again.' };
+    }
+    render();
+  };
+  const holCancel = document.getElementById('hol-cancel');
+  if(holCancel) holCancel.onclick = ()=>{ state.hol = { rows:[], skipped:0, file:'', error:'' }; render(); };
+  const holImport = document.getElementById('hol-import');
+  if(holImport) holImport.onclick = async ()=>{
+    const rows = state.hol.rows;
+    holImport.disabled = true;
+    if(await saveHolidays(rows)){
+      await refreshHolidays();
+      state.hol = { rows:[], skipped:0, file:'', error:'' };
+      showToast(rows.length + ' holiday' + (rows.length===1?'':'s') + ' saved');
+    }
+    render();
+  };
+  const holAdd = document.getElementById('hol-add');
+  if(holAdd) holAdd.onclick = async ()=>{
+    const d = document.getElementById('hol-add-date').value;
+    const n = document.getElementById('hol-add-name').value.trim();
+    if(!d){ showToast('Pick a date first'); return; }
+    if(!n){ showToast('Add a holiday name'); return; }
+    if(await saveHolidays([{ date:d, name:n }])){ await refreshHolidays(); showToast('Holiday added'); render(); }
+  };
+  document.querySelectorAll('.hol-del').forEach(b=>{
+    b.onclick = async ()=>{ await deleteHoliday(b.dataset.iso); await refreshHolidays(); showToast('Holiday removed'); render(); };
+  });
+  const holSample = document.getElementById('hol-sample');
+  if(holSample) holSample.onclick = ()=>{
+    const y = new Date().getFullYear();
+    downloadCSV('holidays_sample.csv', [['Date','Day','Holiday'],[y+'-01-01','','New Year’s Day'],['26-01-'+y,'','Republic Day'],['15-Aug-'+y,'','Independence Day'],['02/10/'+y,'','Gandhi Jayanti'],[y+'-12-25','','Christmas']]);
+  };
+
+  /* --- Tasks --- */
+  document.querySelectorAll('.chip[data-taskfilter]').forEach(c=>{
+    c.onclick = ()=>{ state.taskFilter = c.dataset.taskfilter; render(); };
+  });
+
+  const updateAssignSummary = ()=>{
+    const el = document.getElementById('assign-summary');
+    if(!el) return;
+    const n = state.taskDraft.employeeIds.length;
+    el.innerHTML = n ? 'Will be assigned to <strong>' + n + (n===1?' person':' people') + '</strong>' : 'Choose at least one person in step 3';
+    const allBtn = document.getElementById('assign-all');
+    if(allBtn) allBtn.textContent = (n && n === state.assignableEmployees.length) ? 'Clear all' : 'Select all';
+  };
+  updateAssignSummary();
+
+  document.querySelectorAll('.assignee-box').forEach(box=>{
+    box.onchange = ()=>{
+      const id = box.value;
+      const idx = state.taskDraft.employeeIds.indexOf(id);
+      if(box.checked && idx===-1) state.taskDraft.employeeIds.push(id);
+      if(!box.checked && idx!==-1) state.taskDraft.employeeIds.splice(idx,1);
+      box.closest('.assignee-check').classList.toggle('checked', box.checked);
+      updateAssignSummary();
+    };
+  });
+
+  const assignAll = document.getElementById('assign-all');
+  if(assignAll) assignAll.onclick = ()=>{
+    const everyone = state.assignableEmployees.map(e=>e.id);
+    const allOn = everyone.every(id=>state.taskDraft.employeeIds.includes(id));
+    state.taskDraft.employeeIds = allOn ? [] : everyone.slice();
+    document.querySelectorAll('.assignee-box').forEach(box=>{
+      box.checked = !allOn;
+      box.closest('.assignee-check').classList.toggle('checked', !allOn);
+    });
+    updateAssignSummary();
+  };
+
+  // keep what's typed so a re-render never wipes the form
+  const tTitle = document.getElementById('task-title');
+  if(tTitle) tTitle.oninput = ()=>{ state.taskDraft.title = tTitle.value; };
+  const tDesc = document.getElementById('task-desc');
+  if(tDesc) tDesc.oninput = ()=>{ state.taskDraft.description = tDesc.value; };
+  const tDue = document.getElementById('task-due');
+  if(tDue) tDue.onchange = ()=>{ state.taskDraft.dueDate = tDue.value; };
+
+  const assignBtn = document.getElementById('assign-task-btn');
+  if(assignBtn){
+    assignBtn.onclick = async ()=>{
+      const title = document.getElementById('task-title').value.trim();
+      const description = document.getElementById('task-desc').value;
+      const dueDate = document.getElementById('task-due').value;
+      const employeeIds = state.taskDraft.employeeIds;
+      if(!title){ showToast('Step 1: give the task a title'); document.getElementById('task-title').focus(); return; }
+      if(employeeIds.length===0){ showToast('Step 3: choose who it’s for'); return; }
+      const n = employeeIds.length;
+      const ok = await createTasks(employeeIds, title, description, dueDate);
+      if(ok){
+        state.taskDraft = { employeeIds: [], title: '', description: '', dueDate: '' };
+        state.taskFilter = 'all';
+        showToast('Task assigned to ' + n + (n===1?' person':' people'));
+        await render();
+        const tr = document.getElementById('tracker');
+        if(tr) tr.scrollIntoView({ behavior:'smooth', block:'start' });
+      }
+    };
+  }
+
+  document.querySelectorAll('[data-task-status]').forEach(sel=>{
+    sel.onchange = async ()=>{
+      await updateTaskStatus(sel.dataset.taskStatus, sel.value);
+      render();
+    };
+  });
+
+  document.querySelectorAll('.task-delete').forEach(btn=>{
+    btn.onclick = async ()=>{
+      await deleteTask(btn.dataset.taskId);
       render();
     };
   });
@@ -1188,6 +2609,11 @@ function syncEntriesFromDOM(){
 async function submitReport(){
   syncEntriesFromDOM();
   const d = state.draft;
+
+  if(!state.profile.managerId){
+    showToast('Please select who you report to before submitting');
+    return;
+  }
 
   if(d.status === 'leave'){
     if(!d.leaveReason || !d.leaveReason.trim()){
@@ -1232,12 +2658,11 @@ async function submitReport(){
 }
 
 /* ---------- Init ---------- */
-(async function init(){
-  await loadProfile();
+(function init(){
   if(state.draft.entries.length===0 && state.draft.status!=='leave'){
     state.draft.entries.push({id:uid(), start:'', end:'', description:''});
   }
-  render();
+  initAuth();
 })();
 </script>
 </body>
